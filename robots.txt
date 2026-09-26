@@ -1,2 +1,3 @@
 User-agent: *
 Allow: /
+Sitemap: https://nwolfpl.github.io/rossignoli-locacoes/sitemap.xml
