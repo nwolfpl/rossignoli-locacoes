@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Caminhão Munck em Varginha e Sul de Minas | Rossignoli Locações</title>
-<meta name="description" content="Locação de caminhão munck com operador em Varginha e em todo o Sul de Minas (raio de 200 km). Valor fechado pelo WhatsApp antes de sair, atendimento 24 h e documentação para empresas.">
+<meta name="description" content="Locação de caminhão munck com operador e cesto aéreo para trabalho em altura em Varginha e em todo o Sul de Minas (raio de 200 km). Valor fechado pelo WhatsApp antes de sair, atendimento 24 h e documentação para empresas.">
 <!--
   ROSSIGNOLI LOCAÇÕES — landing v4 (refeita do zero)
   Site oficial (linkado no Perfil da Empresa no Google).
@@ -63,7 +63,8 @@
       {"@type":"Offer","itemOffered":{"@type":"Service","name":"Instalação de caixas d'água, tanques e piscinas de fibra"}},
       {"@type":"Offer","itemOffered":{"@type":"Service","name":"Remoção e posicionamento de máquinas industriais"}},
       {"@type":"Offer","itemOffered":{"@type":"Service","name":"Montagem de estruturas metálicas e pré-moldados"}},
-      {"@type":"Offer","itemOffered":{"@type":"Service","name":"Içamento para usinas solares, postes e transformadores"}}
+      {"@type":"Offer","itemOffered":{"@type":"Service","name":"Içamento para usinas solares, postes e transformadores"}},
+      {"@type":"Offer","itemOffered":{"@type":"Service","name":"Cesto aéreo para trabalho em altura"}}
     ]
   },
   "sameAs": [
@@ -185,6 +186,13 @@ textarea.field{min-height:84px;resize:vertical}
 .app p{margin:0;color:var(--mute);font-size:15.5px}
 .app .go{margin-top:auto;padding-top:8px;font-family:var(--display);font-weight:700;font-size:16px;letter-spacing:.05em;text-transform:uppercase;color:var(--orange-deep)}
 
+/* ---------- galeria ---------- */
+.gallery{display:grid;gap:10px;margin-top:34px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+@media(max-width:520px){.gallery figcaption{font-size:13px;padding:30px 10px 9px}}
+.gallery figure{margin:0;position:relative;border-radius:var(--r);overflow:hidden;background:var(--ink-3);aspect-ratio:4/5}
+.gallery img,.gallery video{width:100%;height:100%;object-fit:cover;display:block}
+.gallery figcaption{position:absolute;left:0;right:0;bottom:0;padding:40px 14px 12px;background:linear-gradient(transparent,rgba(0,0,0,.82));color:#EDE9E3;font-size:14.5px;font-weight:600;line-height:1.35}
+
 /* ---------- diferenciais ---------- */
 .why{display:grid;gap:1px;background:var(--line-dark);border:1px solid var(--line-dark);margin-top:36px;border-radius:var(--r);overflow:hidden}
 @media(min-width:760px){.why{grid-template-columns:1fr 1fr}}
@@ -300,7 +308,7 @@ footer a{color:#EDE9E3}
       <ul class="hero-facts">
         <li>Atendimento 24 h</li>
         <li>Operador incluso</li>
-        <li>Empresas e residências</li>
+        <li>Cesto para trabalho em altura</li>
       </ul>
     </div>
     <figure class="hero-photo">
@@ -333,6 +341,7 @@ footer a{color:#EDE9E3}
             <label class="chip"><input type="radio" name="carga" value="Estrutura metálica / pré-moldado"><span>Estrutura metálica / pré-moldado</span></label>
             <label class="chip"><input type="radio" name="carga" value="Solar / transformador / poste"><span>Solar / transformador / poste</span></label>
             <label class="chip"><input type="radio" name="carga" value="Agro / armazém de café"><span>Agro / armazém de café</span></label>
+            <label class="chip"><input type="radio" name="carga" value="Cesto aéreo / trabalho em altura"><span>Trabalho em altura (cesto)</span></label>
             <label class="chip"><input type="radio" name="carga" value="Outro"><span>Outro</span></label>
           </div>
         </fieldset>
@@ -407,7 +416,22 @@ footer a{color:#EDE9E3}
       <button class="app" type="button" data-carga="Estrutura metálica / pré-moldado"><h3>Estruturas e obra</h3><p>Treliças, vigas, telhas, lajes e peças pré-moldadas para galpões e coberturas.</p><span class="go">Pedir orçamento →</span></button>
       <button class="app" type="button" data-carga="Solar / transformador / poste"><h3>Energia e solar</h3><p>Transformadores, postes, cabines e estruturas para usinas solares e redes elétricas.</p><span class="go">Pedir orçamento →</span></button>
       <button class="app" type="button" data-carga="Agro / armazém de café"><h3>Agro e café</h3><p>Secadores, tulhas, big bags e equipamentos de beneficiamento em fazendas e armazéns.</p><span class="go">Pedir orçamento →</span></button>
+      <button class="app" type="button" data-carga="Cesto aéreo / trabalho em altura"><h3>Trabalho em altura</h3><p>Cesto aéreo no munck para manutenção em telhados, estruturas, iluminação e equipamentos no alto de galpões.</p><span class="go">Pedir orçamento →</span></button>
       <button class="app" type="button" data-quando="urgente (hoje)"><h3>Emergência 24 h</h3><p>Máquina parada, carga tombada ou entrega fora de hora. A gente atende a qualquer hora.</p><span class="go">Chamar agora →</span></button>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== EM OPERAÇÃO ===================== -->
+<section id="operacao" style="padding-top:0" aria-labelledby="h-op">
+  <div class="wrap">
+    <p class="kicker">Em operação</p>
+    <h2 id="h-op">Do chão de fábrica ao alto do armazém.</h2>
+    <div class="gallery">
+      <figure><video src="video/conteiner-exportacao.mp4" poster="video/conteiner-exportacao.jpg" width="356" height="560" autoplay muted loop playsinline preload="metadata" aria-label="Vídeo: máquina embalada sendo içada pelo munck e colocada dentro de um contêiner de exportação"></video><figcaption>Máquina entrando em contêiner de exportação</figcaption></figure>
+      <figure><img src="fotos/cesto-manutencao-industria.jpg" width="960" height="1200" loading="lazy" alt="Profissional no cesto aéreo do munck fazendo manutenção no alto de uma indústria"><figcaption>Cesto aéreo em manutenção industrial</figcaption></figure>
+      <figure><img src="fotos/munck-cesto-galpao.jpg" width="960" height="1200" loading="lazy" alt="Caminhão munck da Rossignoli com a lança erguida dentro de um galpão industrial"><figcaption>Munck com cesto dentro de galpão</figcaption></figure>
+      <figure><img src="fotos/cesto-telhado-armazem.jpg" width="903" height="1200" loading="lazy" alt="Lança do guindaste levando o cesto até a borda do telhado de um armazém"><figcaption>Cesto no telhado de armazém</figcaption></figure>
     </div>
   </div>
 </section>
@@ -434,7 +458,8 @@ footer a{color:#EDE9E3}
       <h2 id="h-eq">Guindaste articulado sobre caminhão trucado.</h2>
       <table class="spec">
         <tr><th scope="row">Guindaste</th><td>Luna Supremus 25.5, articulado hidráulico</td></tr>
-        <tr><th scope="row">Caminhão</th><td>Volkswagen trucado, com carroceria</td></tr>
+        <tr><th scope="row">Caminhão</th><td>Volkswagen, com carroceria</td></tr>
+        <tr><th scope="row">Cesto aéreo</th><td>Para trabalho em altura</td></tr>
         <tr><th scope="row">Operador</th><td>Incluso em todo serviço</td></tr>
         <tr><th scope="row">Atendimento</th><td>24 horas, todos os dias</td></tr>
         <tr><th scope="row">Orçamento</th><td>Pelo WhatsApp, com valor total</td></tr>
@@ -541,6 +566,7 @@ footer a{color:#EDE9E3}
       <details><summary>Atendem à noite e no fim de semana?</summary><p>Sim, o atendimento é 24 horas, todos os dias.</p></details>
       <details><summary>Preciso de autorização para o caminhão parar na rua?</summary><p>Se o caminhão precisar ocupar a via pública, algumas prefeituras exigem autorização do órgão de trânsito. A gente avisa durante o orçamento quando for o caso e orienta como pedir.</p></details>
       <details><summary>Vocês atendem empresas que exigem cadastro de fornecedor?</summary><p>Sim. Mande pelo WhatsApp a lista do que o seu setor de compras ou de segurança do trabalho pede, e a gente responde antes de agendar o serviço.</p></details>
+      <details><summary>Vocês têm cesto para trabalho em altura?</summary><p>Sim. O cesto vai acoplado ao munck e leva a equipe até telhados, estruturas, luminárias e equipamentos no alto de galpões e armazéns. Conte no pedido a altura e o que vai ser feito lá em cima.</p></details>
       <details><summary>Qual a diferença entre munck e guindaste?</summary><p>Munck é o guindaste articulado montado sobre um caminhão: chega, levanta e ainda leva a carga na carroceria. É o mais prático para cargas de até algumas toneladas. Para cargas muito pesadas ou alturas muito grandes, o indicado é um guindaste de maior porte, e a gente avisa na hora se for o caso.</p></details>
     </div>
   </div>
@@ -589,6 +615,10 @@ footer a{color:#EDE9E3}
 (function(){
   var PHONE='5535991912616';
   if(/[?&]revisar\b/.test(location.search)) document.body.classList.add('rev');
+  // Respeita quem pediu menos movimento no aparelho
+  if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches){
+    document.querySelectorAll('video[autoplay]').forEach(function(v){ v.removeAttribute('autoplay'); v.pause(); v.controls=true; });
+  }
 
   // Origem do contato (utm_source, ?o= ou site de onde veio), anexada à mensagem:
   // é assim que dá para saber quantos pedidos vieram do Google, do Instagram, do adesivo do caminhão...
