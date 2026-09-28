@@ -167,7 +167,9 @@ const QUEM_DECIDE = {
   'Contêiner e andaimes':'o dono ou quem cuida das entregas',
   "Piscinas e caixas d'água":'o dono ou quem cuida da instalação/entrega',
   'Material de construção':'gerente da loja ou responsável pelas entregas',
-  'Máquinas agrícolas e industriais':'gerente de pós-venda/entregas ou o dono'};
+  'Máquinas agrícolas e industriais':'gerente de pós-venda/entregas ou o dono',
+  'Postos de combustível':'o dono ou o gerente do posto (a reforma costuma ser tocada pela distribuidora ou por uma instaladora)',
+  'Loteamentos e incorporadoras':'o sócio da incorporadora ou o engenheiro da construtora que faz a infraestrutura'};
 const quemDecide = c => QUEM_DECIDE[c.segmento] || 'quem contrata frete e içamento (em empresa pequena, normalmente o dono)';
 const fone = c => c.decisor_telefone || c.telefone;
 const msgRecepcao = c => `${saudacao()}! Aqui é da Rossignoli Locações, de Varginha: caminhão munck com operador e cesto aéreo. Quem aí na ${c.nome.split(/ [-–|(]/)[0]} cuida da contratação de içamento ou frete de carga pesada? Pode me passar o nome e o contato dessa pessoa? Obrigado!`;
