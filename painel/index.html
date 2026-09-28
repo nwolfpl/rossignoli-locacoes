@@ -376,6 +376,52 @@ function abrePedido(p,depois){
   const t=d.querySelector('#pTel'); if(t) t.addEventListener('click',respondeu);
 }
 
+/* Vi uma obra: quem passa por um canteiro registra a construtora da placa e a obra vira conta com próximo passo hoje */
+const OBRAS = {
+  construcao:['Construção de prédio ou casa','Construtoras e obras','Obra em andamento: laje, pré-moldados, estrutura metálica e caixa d\'água precisam de içamento.'],
+  pavimentacao:['Pavimentação, drenagem ou saneamento','Construtoras e obras','Obra de pavimentação/drenagem: descarga de tubos, manilhas, bloquetes e poços de visita com munck.'],
+  galpao:['Galpão ou estrutura metálica','Estruturas metálicas','Montagem de galpão: vigas, pilares e telhas metálicas são içados com munck.'],
+  loteamento:['Loteamento','Loteamentos e incorporadoras','Loteamento em obra: tubos, postes e pré-moldados da infraestrutura precisam de munck.'],
+  eletrica:['Rede elétrica, iluminação ou solar','Elétrica, iluminação e subestações','Obra elétrica/solar: postes, transformadores e placas pedem munck e cesto aéreo.'],
+  poda:['Poda ou corte de árvores','Poda de árvores','Poda em altura: cesto aéreo e munck para retirar galhos e toras.'],
+  outro:['Outra obra','Construtoras e obras','Obra vista em andamento que pode precisar de içamento.']};
+function viUmaObra(depois){
+  fecha();
+  const sh=document.createElement('div'); sh.className='shade'; sh.onclick=fecha;
+  const d=document.createElement('div'); d.className='drawer';
+  d.innerHTML=`<h2>Vi uma obra</h2><p class="small mute" style="margin:-4px 0 12px">Anote o que está na placa. A obra entra em Contas com próximo passo para hoje.</p>
+    <form class="grid" id="fObra">
+      <label class="f full">Empresa da placa (construtora)<input class="in" name="empresa" required></label>
+      <label class="f">Cidade<input class="in" name="cidade" value="Varginha" required></label>
+      <label class="f">Tipo de obra<select class="in" name="tipo">${Object.entries(OBRAS).map(([k,[l]])=>`<option value="${k}">${l}</option>`).join('')}</select></label>
+      <label class="f">Telefone da placa<input class="in" name="telefone" inputmode="tel"></label>
+      <label class="f">Responsável técnico (engenheiro)<input class="in" name="engenheiro"></label>
+      <label class="f full">Onde fica<input class="in" name="local" placeholder="Rua, bairro ou referência"></label>
+      <label class="f full">O que viu<textarea class="in" name="obs" rows="3" placeholder="Ex.: fundação pronta, vão chegar pré-moldados; obra da prefeitura; placa com CNPJ…"></textarea></label>
+    </form>`;
+  const a=document.createElement('div'); a.className='actions';
+  a.innerHTML='<button class="btn" id="bObra">Salvar obra</button><button class="btn sec" id="bFecha">Fechar</button>';
+  document.body.append(sh,d,a); $('#bFecha').onclick=fecha;
+  $('#bObra').onclick=async()=>{
+    const f=$('#fObra'); if(!f.reportValidity()) return;
+    const v=Object.fromEntries(new FormData(f)); const [rot,seg,pq]=OBRAS[v.tipo];
+    const nota=`Obra vista em ${new Date().toLocaleDateString('pt-BR')} por ${EU.split('@')[0]}: ${rot}${v.local?' em '+v.local:''}${v.cidade?' ('+v.cidade+')':''}.${v.engenheiro?' Responsável técnico na placa: '+v.engenheiro+'.':''}${v.obs?' '+v.obs:''}`;
+    const {data:ex}=await sb.from('contas').select('id,observacoes,telefone,status').ilike('nome',v.empresa.trim()).limit(1);
+    const passo={proximo_passo:'Ligar: obra em andamento'+(v.local?' ('+v.local+')':''),proximo_passo_em:hoje()};
+    let error;
+    if(ex&&ex.length){ const c=ex[0];
+      ({error}=await sb.from('contas').update({...passo,observacoes:(c.observacoes?c.observacoes+'\n':'')+nota,telefone:c.telefone||v.telefone||null,status:c.status==='sem_interesse'?'a_contatar':c.status}).eq('id',c.id));
+      if(!error) toast('Já existia: obra anotada na conta e próximo passo para hoje'); }
+    else { ({error}=await sb.from('contas').insert({nome:v.empresa.trim(),tipo:'empresa',segmento:seg,cidade:v.cidade.trim(),telefone:v.telefone||null,endereco:v.local||null,prioridade:'A',status:'a_contatar',
+        fonte_lead:'Vi uma obra',origem_dado:'Painel '+hoje(),encontrado_em:hoje(),por_que_precisa:pq,
+        como_abordar:'Ligar ou passar no canteiro, falar com o engenheiro/mestre de obras e oferecer munck com operador para as próximas etapas.',
+        decisor_nome:v.engenheiro||null,decisor_cargo:v.engenheiro?'Responsável técnico (placa da obra)':null,observacoes:nota,...passo}));
+      if(!error) toast('Obra salva em Contas · próximo passo hoje'); }
+    if(error) return toast('Erro: '+error.message);
+    fecha(); depois&&depois();
+  };
+}
+
 /* Contas */
 const VISTAS=[['todas','Todas'],['hoje','Para hoje'],['novas','Novas (7 dias)'],['negociando','Em negociação'],['paradas','Paradas há +7 dias'],['semdec','Sem decisor'],['semtel','Sem telefone'],['minhas','Minhas'],['clientes','Clientes']];
 // a importação inicial (26 e 28/09/2026) não conta como novidade
@@ -402,7 +448,7 @@ async function contas(){
     <select class="in" id="fCid"><option value="">Todas as cidades</option>${uniq('cidade').map(s=>`<option>${esc(s)}</option>`).join('')}</select>
     <select class="in" id="fPri"><option value="">Prioridade</option><option>A</option><option>B</option><option>C</option></select>
     <select class="in" id="fSt"><option value="">Todos os status</option>${OP.conta_status.map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('')}</select>
-    <button class="btn" id="novo">+ Conta</button></div><div class="chips" id="vistas"></div><div id="lista"></div>`;
+    <button class="btn sec" id="viObra">Vi uma obra</button><button class="btn" id="novo">+ Conta</button></div><div class="chips" id="vistas"></div><div id="lista"></div>`;
   const ids=['q','fSeg','fCid','fPri','fSt'];
   ids.forEach(k=>{ if(FC[k]!=null) $('#'+k).value=FC[k]; });
   const desenha=()=>{
@@ -435,6 +481,7 @@ async function contas(){
   }
   ids.forEach(i=>$('#'+i).addEventListener('input',desenha));
   $('#novo').onclick=()=>gaveta('contas',{tipo:'empresa',status:'a_contatar'},'Nova conta',recarrega);
+  $('#viObra').onclick=()=>viUmaObra(recarrega);
   desenha();
 }
 
@@ -562,7 +609,7 @@ async function fila(){
   const sel=(id,rot,L)=>`<select class="in" id="${id}"><option value="">${rot}</option>${L.map(([k,t])=>`<option value="${esc(k)}">${esc(t)}</option>`).join('')}</select>`;
   v.innerHTML=`<div class="bar"><h2>Fila de hoje</h2>
       <div class="prog"><i id="progI"></i></div><span class="small" id="progT"></span>
-      <label class="small" style="display:flex;gap:6px;align-items:center;margin-left:auto"><input type="checkbox" id="minha" ${minha?'checked':''}> Só as minhas e sem dono</label></div>
+      <label class="small" style="display:flex;gap:6px;align-items:center;margin-left:auto"><input type="checkbox" id="minha" ${minha?'checked':''}> Só as minhas e sem dono</label><button class="btn sec" id="viObra">Vi uma obra</button></div>
     ${horaComercial()?'':'<div class="aviso">Fora do horário comercial (seg a sex, 8h–18h). Mensagem de prospecção agora costuma ser ignorada: prepare a fila e envie a partir das 8h.</div>'}
     ${P.length?`<h3 style="margin:6px 0 8px">Pedidos esperando resposta</h3>${P.map((x,i)=>`<div class="card pedido" data-p="${i}"><div class="bar" style="margin-bottom:4px"><h3 style="margin:0">${esc(x.nome||x.empresa||'Sem nome')}</h3><span class="late small">há ${idade(x.criado_em)}</span><span class="mute small">${esc(x.cidade||'')} · ${esc(x.servico||x.carga||'')} · ${esc(lab('origem',x.origem))}</span></div>
       ${x.mensagem?`<p class="small" style="margin:0 0 6px">${esc(x.mensagem.slice(0,220))}</p>`:''}<button class="btn" data-pa="${i}">Responder agora</button></div>`).join('')}`:''}
@@ -608,6 +655,7 @@ async function fila(){
   $('#fTipo').onclick=e=>{ const b=e.target.closest('[data-t]'); if(!b) return; tipo=b.dataset.t; desenha(); };
   ids.forEach(k=>$('#'+k)[k==='fq'?'oninput':'onchange']=desenha);
   $('#fLimpa').onclick=()=>{ tipo=''; ids.forEach(k=>$('#'+k).value=''); desenha(); };
+  $('#viObra').onclick=()=>viUmaObra(fila);
   $('#minha').onchange=e=>{ try{ localStorage.setItem('filaMinha',e.target.checked?'1':'0'); }catch(_){} fila(); };
   const st=$('#vSemTel'); if(st) st.onclick=()=>{ try{ const f=JSON.parse(localStorage.getItem('fContas')||'{}'); f.vista='semtel'; localStorage.setItem('fContas',JSON.stringify(f)); }catch(e){} };
   v.querySelectorAll('[data-pa]').forEach(bt=>bt.onclick=()=>abrePedido(P[bt.dataset.pa],fila));
