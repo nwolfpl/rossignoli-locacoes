@@ -127,6 +127,7 @@ const diaUtil = n => { const d=new Date(); let k=0; while(k<n){ d.setDate(d.getD
 const duracao = (a,b) => { const m=Math.max(0,Math.round((new Date(b)-new Date(a))/6e4)); return m<60?m+' min':m<1440?Math.round(m/60)+' h':Math.round(m/1440)+' d'; };
 const idade = t => duracao(t,Date.now());
 const horaComercial = () => { const d=new Date(), h=d.getHours(); return d.getDay()%6!==0 && h>=8 && h<18; };
+const saudacao = () => { const h=new Date().getHours(); return h<12?'Bom dia':h<18?'Boa tarde':'Boa noite'; };
 const dig = t => String(t||'').replace(/\D/g,'');
 const ehCel = t => /^\d{2}9\d{8}$/.test(dig(t));
 let EU = '';
@@ -169,13 +170,13 @@ const QUEM_DECIDE = {
   'Máquinas agrícolas e industriais':'gerente de pós-venda/entregas ou o dono'};
 const quemDecide = c => QUEM_DECIDE[c.segmento] || 'quem contrata frete e içamento (em empresa pequena, normalmente o dono)';
 const fone = c => c.decisor_telefone || c.telefone;
-const msgRecepcao = c => `Bom dia! Aqui é da Rossignoli Locações, de Varginha: caminhão munck com operador e cesto aéreo. Quem aí na ${c.nome.split(/ [-–|(]/)[0]} cuida da contratação de içamento ou frete de carga pesada? Pode me passar o nome e o contato dessa pessoa? Obrigado!`;
+const msgRecepcao = c => `${saudacao()}! Aqui é da Rossignoli Locações, de Varginha: caminhão munck com operador e cesto aéreo. Quem aí na ${c.nome.split(/ [-–|(]/)[0]} cuida da contratação de içamento ou frete de carga pesada? Pode me passar o nome e o contato dessa pessoa? Obrigado!`;
 let MODS = null;
 async function carregaModelos(){ if(!MODS){ const {data}=await sb.from('modelos_mensagem').select('*').eq('ativo',true); MODS=data||[]; } return MODS; }
 const modeloPara = c => { const et=Math.min((c.etapa||0)+1,5); return (MODS||[]).find(x=>x.etapa===et&&x.segmento===c.segmento)||(MODS||[]).find(x=>x.etapa===et&&!x.segmento)||null; };
 function preenche(txt,c){ const motivo=(c.por_que_precisa||'serviços de içamento').split(/[:;.]/)[0].toLowerCase();
   return txt.replace(/\{empresa\}/g,c.nome.split(/ [-–|(]/)[0]).replace(/\{cidade\}/g,c.cidade&&!/Região|\//.test(c.cidade)?c.cidade:'Varginha e região').replace(/\{motivo\}/g,motivo); }
-function blocoContato(c){
+function blocoContato(c,aberto){
   const md=modeloPara(c), tel=fone(c), comDecisor=!!c.decisor_nome;
   const txt=comDecisor&&md?preenche(md.texto,c).replace(/^(Ol[áa]|Bom dia|Boa tarde)[^!,.]*[!,.]/i,`$1, ${c.decisor_nome.split(' ')[0]}!`):msgRecepcao(c);
   return `<div data-ctt>
@@ -184,8 +185,9 @@ function blocoContato(c){
     <div class="bar" style="margin:8px 0 0">
       ${ehCel(tel)?`<button class="btn" data-a="wa">WhatsApp${horaComercial()?'':' (fora do horário)'}</button>`:''}
       ${tel?`<a class="btn sec" href="tel:${dig(tel)}" data-a="tel">Ligar ${esc(tel)}${c.decisor_telefone?' (direto)':''}</a>`:'<span class="late small">Sem telefone: pesquisar no Maps antes</span>'}
+      ${aberto?'':'<button class="btn sec" data-a="res">Registrar resultado ▾</button>'}
     </div>
-    <div class="res" data-res><span class="small mute">Como foi?</span>
+    <div class="res${aberto?'':' hide'}" data-res><span class="small mute">Como foi?</span>
       ${['decisor','nao_atendeu','interessado','proposta','retorno','sem_interesse','numero_errado','cliente'].map(r=>`<button class="chip" data-r="${r}">${RES[r]}</button>`).join('')}
       <span class="hide" data-dec style="display:flex;gap:6px;flex-wrap:wrap;width:100%"><input class="in" data-dn placeholder="Nome do decisor" value="${esc(c.decisor_nome||'')}"><input class="in" data-dc placeholder="Cargo" value="${esc(c.decisor_cargo||'')}"><input class="in" data-dt placeholder="Telefone direto" value="${esc(c.decisor_telefone||'')}"></span>
       <input type="date" class="in hide" data-ret><input class="in small" data-nota placeholder="Anotação (opcional)" style="flex:1;min-width:160px">
@@ -203,7 +205,8 @@ function ligaContato(root,c,feito){
     if(a.dataset.a==='wa'){ const t=root.querySelector('[data-msg]');
       window.open('https://wa.me/55'+dig(fone(c))+(t?'?text='+encodeURIComponent(t.value):''),'_blank'); canal='whatsapp';
       await reg('whatsapp','enviado',(md?md.nome:'Mensagem')+' (etapa '+((c.etapa||0)+1)+')'); return; }
-    if(a.dataset.a==='tel'){ canal='ligacao'; res.classList.add('pede'); return; }   // o resultado da ligação vem nos botões abaixo
+    if(a.dataset.a==='tel'){ canal='ligacao'; res.classList.remove('hide'); res.classList.add('pede'); return; }   // o resultado da ligação vem nos botões abaixo
+    if(a.dataset.a==='res'){ res.classList.toggle('hide'); return; }
     const r=a.dataset.r;
     if(r==='decisor'){ const box=root.querySelector('[data-dec]');
       if(box.classList.contains('hide')){ box.classList.remove('hide'); a.textContent='Salvar decisor'; box.querySelector('[data-dn]').focus(); return; }
@@ -211,7 +214,8 @@ function ligaContato(root,c,feito){
       if(!dn) return toast('Coloque ao menos o nome do decisor');
       const {error}=await sb.from('contas').update({decisor_nome:dn,decisor_cargo:dc||null,decisor_telefone:dt_||null}).eq('id',c.id); if(error) return toast('Erro: '+error.message);
       Object.assign(c,{decisor_nome:dn,decisor_cargo:dc||null,decisor_telefone:dt_||null});
-      await reg(canal||(ehCel(c.telefone)?'whatsapp':'ligacao'),'decisor',`Decisor: ${dn}${dc?' ('+dc+')':''}${dt_?' · '+dt_:''}`); return; }
+      const ok=await reg(canal||(ehCel(c.telefone)?'whatsapp':'ligacao'),'decisor',`Decisor: ${dn}${dc?' ('+dc+')':''}${dt_?' · '+dt_:''}`);
+      if(ok){ const blk=root.querySelector('[data-ctt]'); blk.outerHTML=blocoContato(c,true); } return; }
     if(r==='retorno'&&ret.classList.contains('hide')){ ret.classList.remove('hide'); ret.value=diaUtil(5); a.textContent='Confirmar retorno'; ret.focus(); return; }
     if(r==='sem_interesse'&&!confirm('Marcar '+c.nome+' como sem interesse?')) return;
     const tipo=canal||(r==='nao_atendeu'?'ligacao':ehCel(fone(c))?'whatsapp':'ligacao');
@@ -404,9 +408,9 @@ async function contas(){
     const q=$('#q').value.toLowerCase(), qd=dig(q), s=$('#fSeg').value, ci=$('#fCid').value, pr=$('#fPri').value, st=$('#fSt').value;
     const base=all.filter(c=>(!q||c.nome.toLowerCase().includes(q)||(c.cidade||'').toLowerCase().includes(q)||(qd.length>3&&dig(c.telefone).includes(qd)))&&(!s||c.segmento===s)&&(!ci||c.cidade===ci)&&(!pr||c.prioridade===pr)&&(!st||c.status===st));
     $('#vistas').innerHTML=VISTAS.map(([k,l])=>`<button class="chip${k===vista?' on':''}" data-v="${k}">${l}<b>${base.filter(c=>naVista(k,c)).length}</b></button>`).join('');
-    const L=base.filter(c=>naVista(vista,c));
+    const L=q?base:base.filter(c=>naVista(vista,c));   // quem digita um nome quer achar a conta, esteja em que vista estiver
     if(vista==='hoje') L.sort((a,b)=>a.proximo_passo_em.localeCompare(b.proximo_passo_em)||(b.pontuacao||0)-(a.pontuacao||0));
-    $('#lista').innerHTML=`<div class="count">${L.length} de ${all.length} contas</div><div class="tw"><table><thead><tr><th class="n">Pts</th><th>Empresa</th><th>Cidade</th><th>Telefone</th><th>Status</th><th>Próximo passo</th><th>Resp.</th></tr></thead><tbody>${
+    $('#lista').innerHTML=`<div class="count">${L.length} de ${all.length} contas${q?' · buscando em todas as vistas':''}</div><div class="tw"><table><thead><tr><th class="n">Pts</th><th>Empresa</th><th>Cidade</th><th>Telefone</th><th>Status</th><th>Próximo passo</th><th>Resp.</th></tr></thead><tbody>${
       L.map(c=>`<tr data-id="${c.id}"><td class="n"><b>${c.pontuacao??''}</b></td><td><b>${esc(c.nome)}</b> ${pill(c.prioridade)}${ehNova(c)?' <span class="pill p-novo">novo</span>':''}${c.tipo==='parceiro'?' <span class="pill">parceiro</span>':''}<br><span class="mute small">${esc(c.segmento)}${c.decisor_nome?` · decisor: ${esc(c.decisor_nome)}`:''}</span></td><td>${esc(c.cidade)}</td><td class="small">${c.telefone?`<a href="tel:${dig(c.telefone)}" onclick="event.stopPropagation()">${esc(c.telefone)}</a>`:'<span class="late">pesquisar</span>'}</td><td>${pill(c.status,lab('conta_status',c.status))}${c.etapa?`<br><span class="mute small">etapa ${c.etapa}</span>`:''}</td><td class="small">${c.proximo_passo_em?`<span class="${c.proximo_passo_em<hoje()?'late':''}">${dt(c.proximo_passo_em)}</span> `:''}${esc(c.proximo_passo)}</td><td class="small mute">${esc((c.responsavel||'').split('@')[0])}</td></tr>`).join('')||'<tr><td colspan="7" class="mute">Nada nesta vista.</td></tr>'
     }</tbody></table></div>`;
     $('#lista tbody').onclick=e=>{ const tr=e.target.closest('tr[data-id]'); if(tr) abreConta(all.find(x=>x.id===tr.dataset.id)); };
@@ -416,7 +420,7 @@ async function contas(){
   async function abreConta(c){
     const topo=`<p class="small mute" style="margin:-4px 0 10px">${esc(c.segmento||'')} · ${esc(c.cidade||'')} · ${pill(c.status,lab('conta_status',c.status))}${c.proximo_passo?` · próximo: <b>${esc(c.proximo_passo)}</b> ${dt(c.proximo_passo_em)}`:''}</p>
       ${c.por_que_precisa||c.como_abordar?`<div class="card small"><b>Por que precisa:</b> ${esc(c.por_que_precisa||'—')}<br><b>Como abordar:</b> ${esc(c.como_abordar||'—')}</div>`:''}
-      <div class="card">${blocoContato(c)}</div>
+      <div class="card">${blocoContato(c,true)}</div>
       <div class="hist"><h3>Histórico</h3><ul id="lAt"><li class="mute">Carregando…</li></ul></div>`;
     const d=gaveta('contas',c,c.nome,recarrega,'',{topo,recolhido:true,semApagar:true});
     const lista=async()=>{ const {data}=await sb.from('atividades').select('*').eq('conta_id',c.id).order('feito_em',{ascending:false});
@@ -562,6 +566,7 @@ async function fila(){
       ${x.mensagem?`<p class="small" style="margin:0 0 6px">${esc(x.mensagem.slice(0,220))}</p>`:''}<button class="btn" data-pa="${i}">Responder agora</button></div>`).join('')}`:''}
     <h3 style="margin:14px 0 8px">Prospecção</h3>
     <div class="chips" id="fTipo"></div>
+    <details id="fBox" class="small" style="margin-bottom:10px"><summary style="cursor:pointer;margin-bottom:8px">Filtros <span id="fAtivos" class="mute"></span></summary>
     <div class="bar" style="gap:6px">
       <input class="in" id="fq" placeholder="Buscar empresa…" style="flex:1;min-width:160px">
       ${sel('fSeg','Todos os segmentos',uniq('segmento').map(x=>[x,x]))}
@@ -569,7 +574,7 @@ async function fila(){
       ${sel('fCanal','WhatsApp ou ligação',[['whatsapp','Só WhatsApp (celular)'],['ligacao','Só ligação (fixo)']])}
       ${sel('fPri','Prioridade',[['A','A'],['B','B'],['C','C']])}
       <button class="btn sec" id="fLimpa">Limpar</button>
-    </div>
+    </div></details>
     <p class="small mute" style="margin:0 0 10px">Primeiro os retornos vencidos, depois as contas novas de maior pontuação. Mensagem no WhatsApp é registrada sozinha; depois de ligar, clique no resultado.${semTel.count?` <a href="#contas" id="vSemTel">${semTel.count} contas sem telefone</a> ficam fora da fila até alguém achar o número.`:''}</p>
     <div id="filaL"></div>`;
   const TIPOS=[['','Tudo'],['retornos','Retornos vencidos'],['novas','Primeiro contato'],['decisor','Falar com decisor'],['semdec','Sem decisor ainda']];
@@ -577,6 +582,7 @@ async function fila(){
   const ids=['fq','fSeg','fCid','fCanal','fPri'];
   let FF={}; try{ FF=JSON.parse(localStorage.getItem('fFila')||'{}'); }catch(e){}
   let tipo=FF.tipo||''; ids.forEach(k=>{ if(FF[k]!=null) $('#'+k).value=FF[k]; });
+  if(ids.some(k=>$('#'+k).value)) $('#fBox').open=true;
   const prog=()=>{ $('#progI').style.width=Math.min(100,jaHoje.size/META_DIA*100)+'%'; $('#progT').innerHTML=`<b>${jaHoje.size}</b> de ${META_DIA} contas trabalhadas hoje`; };
   const desenha=()=>{
     const g=k=>$('#'+k).value; FF={tipo}; ids.forEach(k=>FF[k]=g(k)); try{ localStorage.setItem('fFila',JSON.stringify(FF)); }catch(e){}
@@ -584,7 +590,8 @@ async function fila(){
     const base=POOL.filter(c=>(!q||c.nome.toLowerCase().includes(q))&&(!g('fSeg')||c.segmento===g('fSeg'))&&(!g('fCid')||c.cidade===g('fCid'))&&(!g('fCanal')||c.canal_sugerido===g('fCanal'))&&(!g('fPri')||c.prioridade===g('fPri')));
     $('#fTipo').innerHTML=TIPOS.map(([k,t])=>`<button class="chip${k===tipo?' on':''}" data-t="${k}">${t}<b>${base.filter(c=>noTipo(k,c)).length}</b></button>`).join('');
     const todos=base.filter(c=>noTipo(tipo,c)), falta=Math.max(0,META_DIA-jaHoje.size), L=todos.slice(0,falta||5);
-    const filtrado=tipo||ids.some(k=>g(k));
+    const filtrado=tipo||ids.some(k=>g(k)), nAt=ids.filter(k=>g(k)).length;
+    $('#fAtivos').textContent=nAt?`(${nAt} ativo${nAt>1?'s':''})`:'';
     $('#filaL').innerHTML=`<div class="count">${L.length?`Mostrando ${L.length} de ${todos.length}${filtrado?' com esses filtros':''}${falta?'':' · meta do dia batida, estes são extras'}`:''}</div>
     ${L.length?'':`<p class="mute">${filtrado?'Nada com esses filtros.':'Fila vazia por hoje.'}</p>`}
     ${L.map((c,i)=>`<div class="card" data-i="${i}"><div class="bar" style="margin-bottom:6px"><h3 style="margin:0">${esc(c.nome)}</h3>${pill(c.prioridade)} <span class="pill">${c.pontuacao??''} pts</span> <span class="mute small">${esc(c.segmento||'')} · ${esc(c.cidade||'')} · etapa ${c.etapa||0}${c.proximo_passo?` · <span class="${c.proximo_passo_em&&c.proximo_passo_em<h?'late':''}">${esc(c.proximo_passo)}</span>`:''}</span>
