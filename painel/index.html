@@ -118,7 +118,9 @@ const OP = {
   prioridade:[['A','A'],['B','B'],['C','C']],
   atividade:[['ligacao','Ligação'],['whatsapp','WhatsApp'],['visita','Visita'],['email','E-mail'],['proposta','Proposta'],['outro','Outro']],
   lic_status:[['monitorar','Monitorar'],['preparar','Preparar'],['enviada','Proposta enviada'],['ganha','Ganha'],['perdida','Perdida'],['encerrada','Encerrada']],
-  equip:[['munck','Munck'],['cesto','Cesto aéreo'],['munck+cesto','Munck + cesto']]
+  equip:[['munck','Munck'],['cesto','Cesto aéreo'],['munck+cesto','Munck + cesto']],
+  lic_tipo:[['licitacao','Licitação'],['contrato_em_execucao','Contrato em execução (subcontratação)'],['referencia','Referência / histórico']],
+  canal:[['whatsapp','WhatsApp'],['ligacao','Ligação'],['visita','Visita'],['email','E-mail']]
 };
 const lab = (k,v) => (OP[k].find(o=>o[0]===v)||[,v])[1];
 
@@ -131,7 +133,12 @@ const F = {
     ['prioridade','Prioridade','sel','prioridade'],['status','Status','sel','conta_status'],['proximo_passo','Próximo passo','txt',null,1],['proximo_passo_em','Data do próximo passo','date'],
     ['por_que_precisa','Por que precisa de munck','area',null,1],['como_abordar','Como abordar','area',null,1],['observacoes','Observações','area',null,1]],
   licitacoes:[['orgao','Órgão','txt',null,1],['cidade','Cidade'],['processo','Processo'],['objeto','Objeto','area',null,1],['valor_texto','Valor'],['abertura','Abertura','date'],
-    ['status','Status','sel','lic_status'],['fonte','Fonte / link','txt',null,1],['observacoes','Observações','area',null,1]],
+    ['tipo','Tipo','sel','lic_tipo'],['status','Status','sel','lic_status'],['proxima_janela','Próxima janela','date'],['verificado_em','Verificado em','date'],
+    ['acao','O que fazer','area',null,1],['fonte','Fonte / link','txt',null,1],['observacoes','Observações','area',null,1]],
+  modelos_mensagem:[['nome','Nome','txt',null,1],['etapa','Etapa (1 a 5)','num'],['canal','Canal','sel','canal'],['segmento','Segmento (vazio = todos)','txt',null,1],
+    ['texto','Texto (use {empresa}, {cidade}, {motivo})','area',null,1],['ativo','Ativo?','bool']],
+  players:[['nome','Empresa','txt',null,1],['cidade','Base'],['telefone','Telefone'],['instagram','Instagram'],['site','Site'],['onde_aparece','Onde aparece','txt',null,1],['observacoes','Observações','area',null,1],['ativo','Ativo no índice?','bool']],
+  notas:[['categoria','Categoria'],['ordem','Ordem','num'],['titulo','Título','txt',null,1],['conteudo','Conteúdo','area',null,1]],
   agenda:[['inicio','Início','dtl'],['fim','Fim','dtl'],['cidade','Cidade'],['equipamento','Equipamento','sel','equip'],['endereco','Endereço','txt',null,1],['observacoes','Observações','area',null,1]],
   avaliacoes:[['cliente','Cliente'],['telefone','Telefone'],['cidade','Cidade'],['servico','Serviço'],['pedido_em','Pedido em','date'],['lembrete_em','Lembrete em','date'],
     ['avaliou','Avaliou?','bool'],['respondida','Respondida?','bool'],['observacoes','Observações','area',null,1]],
@@ -176,11 +183,11 @@ function gaveta(tab,reg,titulo,depois,extraHtml=''){
 function fecha(){ document.querySelectorAll('.shade,.drawer,.actions').forEach(e=>e.remove()); }
 
 /* ---------- Abas ---------- */
-const ABAS = [['resumo','Resumo'],['pedidos','Pedidos'],['contas','Contas'],['agenda','Agenda'],['avaliacoes','Avaliações'],['licitacoes','Licitações'],['ranking','Ranking']];
+const ABAS = [['resumo','Resumo'],['fila','Fila de hoje'],['pedidos','Pedidos'],['contas','Contas'],['concorrencia','Concorrência'],['licitacoes','Licitações'],['agenda','Agenda'],['avaliacoes','Avaliações'],['ranking','Ranking'],['inteligencia','Inteligência'],['modelos','Modelos']];
 let aba = (location.hash.slice(1) || 'resumo');
 function tabs(){ $('#tabs').innerHTML = ABAS.map(([k,l])=>`<button data-k="${k}" class="${k===aba?'on':''}">${l}</button>`).join(''); }
 $('#tabs').onclick = e => { const b=e.target.closest('button'); if(!b) return; aba=b.dataset.k; location.hash=aba; render(); };
-function render(){ tabs(); ({resumo,pedidos,contas,agenda,avaliacoes,licitacoes,ranking}[aba]||resumo)(); }
+function render(){ fecha(); $('#view').onclick=null; tabs(); ({resumo,fila,pedidos,contas,concorrencia,agenda,avaliacoes,licitacoes,ranking,inteligencia,modelos}[aba]||resumo)(); }
 
 /* Resumo */
 async function resumo(){
@@ -194,8 +201,11 @@ async function resumo(){
     sb.from('agenda').select('*').gte('fim',new Date().toISOString()).order('inicio').limit(5),
     sb.from('v_pedidos_por_origem').select('*').eq('mes',mes),
     sb.from('ranking_semanal').select('*').order('data',{ascending:false}).limit(1),
-    sb.from('licitacoes').select('orgao,abertura,status').in('status',['monitorar','preparar']).not('abertura','is',null).gte('abertura',hoje()).order('abertura').limit(5)
+    sb.from('licitacoes').select('orgao,proxima_janela,status,acao').in('status',['monitorar','preparar']).order('proxima_janela',{nullsFirst:false}).limit(5)
   ]);
+  const [rel,fv]=await Promise.all([sb.from('v_relevancia').select('nome,indice,eh_rossignoli').order('indice',{ascending:false}),
+    sb.from('contas').select('id',{count:'exact',head:true}).in('status',['a_contatar','contatado','proposta']).lte('proximo_passo_em',hoje())]);
+  const RL=rel.data||[], posR=RL.findIndex(x=>x.eh_rossignoli)+1, eu=RL.find(x=>x.eh_rossignoli);
   const P=pm.data||[], fech=P.filter(p=>p.status==='fechado'), fat=fech.reduce((s,p)=>s+Number(p.valor_fechado||0),0);
   const C=cs.data||[], cnt=s=>C.filter(c=>c.status===s).length;
   const r=(rk.data||[])[0];
@@ -209,12 +219,14 @@ async function resumo(){
     <div class="kpi"><b>${brl(fat)||'R$ 0'}</b><small>faturado no mês (registrado)</small></div>
     <div class="kpi"><b>${r?(r.posicao?r.posicao+'º':'—'):'—'}</b><small>no Maps em Varginha${r?' · '+dt(r.data):''}</small></div>
     <div class="kpi"><b>${C.length-cnt('a_contatar')}/${C.length}</b><small>contas já contatadas</small></div>
+    <div class="kpi"><b>${fv.count||0}</b><small>retornos vencidos na fila</small></div>
+    <div class="kpi"><b>${eu?eu.indice:'—'}</b><small>índice de relevância · ${posR||'—'}º de ${RL.length}</small></div>
   </div>
   <div class="card"><h3>Pedidos por origem no mês</h3>${O.length?`<div class="bars">${O.map(o=>`<div class="brow"><span>${esc(lab('origem',o.origem))}</span><i style="width:${o.pedidos/maxO*100}%"></i><span class="n">${o.pedidos}</span></div>`).join('')}</div>`:'<p class="mute">Nenhum pedido ainda neste mês.</p>'}</div>
   <div class="card"><h3>Próximos passos (atrasados e próximos 7 dias)</h3>${(prox.data||[]).length?'<ul>'+prox.data.map(c=>`<li><span class="${c.proximo_passo_em<hoje()?'late':''}">${dt(c.proximo_passo_em)}</span> · <b>${esc(c.nome)}</b> — ${esc(c.proximo_passo)}</li>`).join('')+'</ul>':'<p class="mute">Nada marcado. Defina próximos passos na aba Contas.</p>'}</div>
   <div class="card"><h3>Agenda do caminhão</h3>${(ag.data||[]).length?'<ul>'+ag.data.map(a=>`<li>${dth(a.inicio)} · ${esc(a.cidade||'')} ${esc(a.equipamento||'')} ${esc(a.observacoes||'')}</li>`).join('')+'</ul>':'<p class="mute">Nada agendado.</p>'}</div>
   <div class="card"><h3>Contas por status</h3><div class="bars">${OP.conta_status.map(([k,l])=>`<div class="brow"><span>${l}</span><i style="width:${cnt(k)/Math.max(1,C.length)*100}%"></i><span class="n">${cnt(k)}</span></div>`).join('')}</div></div>
-  <div class="card"><h3>Licitações com abertura marcada</h3>${(lic.data||[]).length?'<ul>'+lic.data.map(l=>`<li>${dt(l.abertura)} · ${esc(l.orgao)} ${pill(l.status)}</li>`).join('')+'</ul>':'<p class="mute">Nenhuma com data futura. Veja a aba Licitações.</p>'}</div>`;
+  <div class="card"><h3>Licitações e contratos a acompanhar</h3>${(lic.data||[]).length?'<ul>'+lic.data.map(l=>`<li>${l.proxima_janela?dt(l.proxima_janela)+' · ':''}<b>${esc(l.orgao)}</b> ${pill(l.status)}<br><span class="small mute">${esc(l.acao||'')}</span></li>`).join('')+'</ul>':'<p class="mute">Nada a acompanhar.</p>'}</div>`;
 }
 
 /* Pedidos */
@@ -250,8 +262,8 @@ async function contas(){
   const desenha=()=>{
     const q=$('#q').value.toLowerCase(), s=$('#fSeg').value, ci=$('#fCid').value, pr=$('#fPri').value, st=$('#fSt').value;
     const L=all.filter(c=>(!q||c.nome.toLowerCase().includes(q))&&(!s||c.segmento===s)&&(!ci||c.cidade===ci)&&(!pr||c.prioridade===pr)&&(!st||c.status===st));
-    $('#lista').innerHTML=`<div class="count">${L.length} de ${all.length} contas</div><div class="tw"><table><thead><tr><th>Empresa</th><th>Segmento</th><th>Cidade</th><th>Telefone</th><th>Prior.</th><th>Status</th><th>Próximo passo</th></tr></thead><tbody>${
-      L.map(c=>`<tr data-id="${c.id}"><td><b>${esc(c.nome)}</b>${c.tipo==='parceiro'?' <span class="pill">parceiro</span>':''}</td><td class="small">${esc(c.segmento)}</td><td>${esc(c.cidade)}</td><td class="small">${c.telefone?`<a href="tel:${esc(c.telefone.replace(/\D/g,''))}" onclick="event.stopPropagation()">${esc(c.telefone)}</a>`:''}</td><td>${pill(c.prioridade)}</td><td>${pill(c.status,lab('conta_status',c.status))}</td><td class="small">${c.proximo_passo_em?`<span class="${c.proximo_passo_em<hoje()?'late':''}">${dt(c.proximo_passo_em)}</span> `:''}${esc(c.proximo_passo)}</td></tr>`).join('')
+    $('#lista').innerHTML=`<div class="count">${L.length} de ${all.length} contas</div><div class="tw"><table><thead><tr><th>Empresa</th><th>Segmento</th><th>Cidade</th><th>Telefone</th><th>Prior.</th><th>Status</th><th>Etapa</th><th>Próximo passo</th></tr></thead><tbody>${
+      L.map(c=>`<tr data-id="${c.id}"><td><b>${esc(c.nome)}</b>${c.tipo==='parceiro'?' <span class="pill">parceiro</span>':''}</td><td class="small">${esc(c.segmento)}</td><td>${esc(c.cidade)}</td><td class="small">${c.telefone?`<a href="tel:${esc(c.telefone.replace(/\D/g,''))}" onclick="event.stopPropagation()">${esc(c.telefone)}</a>`:''}</td><td>${pill(c.prioridade)}</td><td>${pill(c.status,lab('conta_status',c.status))}</td><td class="n">${c.etapa||0}</td><td class="small">${c.proximo_passo_em?`<span class="${c.proximo_passo_em<hoje()?'late':''}">${dt(c.proximo_passo_em)}</span> `:''}${esc(c.proximo_passo)}</td></tr>`).join('')
     }</tbody></table></div>`;
     $('#lista tbody').onclick=e=>{ const tr=e.target.closest('tr'); abreConta(all.find(x=>x.id===tr.dataset.id)); };
   };
@@ -263,8 +275,9 @@ async function contas(){
       $('#lAt').innerHTML=(data||[]).length?data.map(a=>`<li><b>${dth(a.feito_em)}</b> · ${esc(lab('atividade',a.tipo))} · ${esc(a.resumo)} <span class="mute small">(${esc((a.feito_por||'').split('@')[0])})</span></li>`).join(''):'<li class="mute">Nenhum contato registrado.</li>'; };
     $('#fAt').onsubmit=async e=>{ e.preventDefault(); const f=e.target;
       const {error}=await sb.from('atividades').insert({conta_id:c.id,tipo:f.tipo.value,resumo:f.resumo.value}); if(error) return toast(error.message);
-      if(c.status==='a_contatar'){ await sb.from('contas').update({status:'contatado'}).eq('id',c.id); c.status='contatado'; d.querySelector('[name=status]').value='contatado'; }
-      f.resumo.value=''; lista(); toast('Contato registrado'); };
+      const {data:nc}=await sb.from('contas').select('status,proximo_passo,proximo_passo_em').eq('id',c.id).single();
+      if(nc){ Object.assign(c,nc); ['status','proximo_passo','proximo_passo_em'].forEach(k=>{ const el=d.querySelector(`[name=${k}]`); if(el) el.value=nc[k]||''; }); }
+      f.resumo.value=''; lista(); toast('Contato registrado · próximo passo agendado'); };
     lista();
   }
   ['q','fSeg','fCid','fPri','fSt'].forEach(i=>$('#'+i).addEventListener('input',desenha));
@@ -291,12 +304,87 @@ const agenda=()=>simples('agenda','Agenda do caminhão','inicio',true,
 const avaliacoes=()=>simples('avaliacoes','Pedidos de avaliação','pedido_em',false,
   [['Pedido em',r=>dt(r.pedido_em)],['Cliente',r=>esc(r.cliente)],['Cidade',r=>esc(r.cidade)],['Serviço',r=>esc(r.servico)],['Lembrete',r=>`<span class="${!r.avaliou&&r.lembrete_em&&r.lembrete_em<=hoje()?'late':''}">${dt(r.lembrete_em)}</span>`],['Avaliou',r=>r.avaliou?pill('fechado','sim'):pill('novo','não')],['Respondida',r=>r.respondida?'sim':'não']],
   ()=>({pedido_em:hoje(),lembrete_em:new Date(Date.now()+3*864e5).toISOString().slice(0,10),avaliou:false,respondida:false}), r=>r.cliente);
-const licitacoes=()=>simples('licitacoes','Licitações','criado_em',false,
-  [['Órgão',r=>`<b>${esc(r.orgao)}</b><br><span class="mute small">${esc(r.cidade)}</span>`],['Processo',r=>esc(r.processo)],['Objeto',r=>`<span class="small">${esc(r.objeto)}</span>`],['Valor',r=>esc(r.valor_texto)],['Abertura',r=>dt(r.abertura)],['Status',r=>pill(r.status,lab('lic_status',r.status))]],
+const licitacoes=()=>simples('licitacoes','Licitações e contratos','proxima_janela',true,
+  [['Órgão',r=>`<b>${esc(r.orgao)}</b><br><span class="mute small">${esc(r.cidade)} · ${esc(r.processo)}</span>`],['Objeto',r=>`<span class="small">${esc(r.objeto)}</span><br><span class="mute small">${esc(r.valor_texto||'')}</span>`],['Tipo',r=>`<span class="small">${esc(lab('lic_tipo',r.tipo))}</span>`],['Status',r=>pill(r.status,lab('lic_status',r.status))],['Próxima janela',r=>`<span class="${r.proxima_janela&&r.proxima_janela<=new Date(Date.now()+30*864e5).toISOString().slice(0,10)?'late':''}">${dt(r.proxima_janela)}</span>`],['O que fazer',r=>`<span class="small">${esc(r.acao)}</span>`]],
   ()=>({status:'monitorar'}), r=>r.orgao);
 const ranking=()=>simples('ranking_semanal','Ranking semanal no Google Maps','data',false,
   [['Data',r=>dt(r.data)],['Busca',r=>esc(r.busca)],['Posição',r=>r.posicao?r.posicao+'º':'não aparece'],['Resultados',r=>r.total_resultados??''],['Avaliações',r=>r.avaliacoes_rossignoli??''],['Nota',r=>r.nota??'']],
   ()=>({data:hoje(),busca:'caminhão munck em Varginha MG'}), r=>'Ranking '+dt(r.data));
+
+/* Fila de contato do dia (cadência semiautomática) */
+function preenche(txt,c){ const motivo=(c.por_que_precisa||'serviços de içamento').split(/[:;.]/)[0].toLowerCase();
+  return txt.replace(/\{empresa\}/g,c.nome.split(/ [-–|(]/)[0]).replace(/\{cidade\}/g,c.cidade&&!/Região|\//.test(c.cidade)?c.cidade:'Varginha e região').replace(/\{motivo\}/g,motivo); }
+async function fila(){
+  const v=$('#view'); v.innerHTML='<p class="mute">Montando a fila…</p>';
+  const h=hoje();
+  const [a,b,m]=await Promise.all([
+    sb.from('v_contas_canal').select('*').in('status',['a_contatar','contatado','proposta']).not('proximo_passo_em','is',null).lte('proximo_passo_em',h).order('proximo_passo_em').limit(15),
+    sb.from('v_contas_canal').select('*').eq('status','a_contatar').eq('etapa',0).is('proximo_passo_em',null).order('prioridade').order('avaliacoes_google',{ascending:false,nullsFirst:false}).limit(15),
+    sb.from('modelos_mensagem').select('*').eq('ativo',true)
+  ]);
+  const L=[...(a.data||[]),...(b.data||[])].slice(0,15), M=m.data||[];
+  const modelo=c=>{ const et=Math.min((c.etapa||0)+1,5); const can=c.canal_sugerido==='ligacao'&&et<3?['whatsapp','ligacao']:null;
+    return M.find(x=>x.etapa===et&&x.segmento===c.segmento)||M.find(x=>x.etapa===et&&!x.segmento)||M.find(x=>!x.segmento); };
+  v.innerHTML=`<div class="bar"><h2>Fila de hoje</h2><span class="mute small">Até 15 contatos por dia: primeiro os retornos vencidos, depois contas novas de prioridade A.</span></div>
+  ${L.length?'':'<p class="mute">Fila vazia. Nenhum retorno vencido e nenhuma conta nova pendente.</p>'}
+  ${L.map((c,i)=>{ const md=modelo(c); const txt=md?preenche(md.texto,c):''; const cel=c.canal_sugerido==='whatsapp';
+    return `<div class="card" data-i="${i}"><div class="bar" style="margin-bottom:6px"><h3 style="margin:0">${esc(c.nome)}</h3>${pill(c.prioridade)} <span class="mute small">${esc(c.segmento||'')} · ${esc(c.cidade||'')} · etapa ${c.etapa||0}${c.proximo_passo?` · ${esc(c.proximo_passo)}`:''}</span></div>
+      <p class="small mute" style="margin:0 0 6px">${esc(c.por_que_precisa||'')}</p>
+      ${md?`<textarea class="in small" rows="4" data-t="${i}">${esc(txt)}</textarea>`:''}
+      <div class="bar" style="margin:8px 0 0">
+        ${cel?`<button class="btn" data-a="wa" data-i="${i}">Enviar WhatsApp</button>`:''}
+        ${c.telefone?`<a class="btn sec" href="tel:${esc(c.fone_digitos)}" data-a="tel" data-i="${i}">Ligar ${esc(c.telefone)}</a>`:'<span class="late small">Sem telefone: pesquisar</span>'}
+        <button class="btn sec" data-a="feito" data-i="${i}">Registrar contato</button>
+        <button class="btn sec" data-a="pula" data-i="${i}">Amanhã</button>
+        <button class="btn del" data-a="nao" data-i="${i}">Sem interesse</button>
+      </div></div>`; }).join('')}`;
+  v.onclick=async e=>{
+    const b=e.target.closest('[data-a]'); if(!b) return; const c=L[b.dataset.i], ta=v.querySelector(`[data-t="${b.dataset.i}"]`), md=modelo(c);
+    const reg=async(tipo,resumo)=>{ const {error}=await sb.from('atividades').insert({conta_id:c.id,tipo,resumo}); if(error) return toast(error.message); toast('Registrado · próximo passo agendado'); b.closest('.card').style.opacity=.4; };
+    if(b.dataset.a==='wa'){ window.open('https://wa.me/55'+c.fone_digitos+'?text='+encodeURIComponent(ta?ta.value:''),'_blank'); await reg('whatsapp',(md?md.nome:'Mensagem')+' (etapa '+((c.etapa||0)+1)+')'); }
+    if(b.dataset.a==='tel'){ setTimeout(async()=>{ const r=prompt('Como foi a ligação? (deixe vazio se não atendeu)'); await reg('ligacao',r||'Ligação sem resposta'); },800); }
+    if(b.dataset.a==='feito'){ const r=prompt('O que foi feito/conversado?'); if(r) await reg('outro',r); }
+    if(b.dataset.a==='pula'){ await sb.from('contas').update({proximo_passo_em:new Date(Date.now()+864e5).toISOString().slice(0,10),proximo_passo:c.proximo_passo||'Primeiro contato'}).eq('id',c.id); b.closest('.card').remove(); }
+    if(b.dataset.a==='nao'){ if(!confirm('Marcar '+c.nome+' como sem interesse?')) return; await sb.from('contas').update({status:'sem_interesse',proximo_passo:null,proximo_passo_em:null}).eq('id',c.id); b.closest('.card').remove(); toast('Marcado'); }
+  };
+}
+
+/* Concorrência: índice de relevância */
+const DICAS={
+ 'Busca local (Google Maps)':'Subir no Maps: avaliações recentes com texto e cidade, 1 postagem por semana, fotos reais e páginas por cidade no site.',
+ 'Reputação':'Pedir 2 a 4 avaliações por semana (aba Avaliações) e responder todas em até 48 h.',
+ 'Presença na web':'Páginas de preço, contêiner, poda e por cidade no site; cadastro em ClickDisk, MF Rural, Apontador, Bing e Apple.',
+ 'Redes sociais':'Instagram com cada serviço feito (cidade + carga), Reels de içamento, 3 posts por semana.',
+ 'Setor público':'Formalização + cadastro nos portais; Nepomuceno agora e Varginha até abril/2027 (aba Licitações).',
+ 'Mídia e divulgação':'Teste de 1 mês em mídia local (Alô Alô Cidade) ou Google Ads com o crédito de novo anunciante, medindo pedidos por origem.'};
+async function concorrencia(){
+  const v=$('#view'); v.innerHTML='<p class="mute">Calculando…</p>';
+  const [r,d,p]=await Promise.all([sb.from('v_relevancia').select('*').order('indice',{ascending:false}),sb.from('dimensoes').select('*').order('ordem'),sb.from('players').select('*').order('nome')]);
+  const R=r.data||[], D=d.data||[], P=p.data||[]; const eu=R.find(x=>x.eh_rossignoli); const pos=R.findIndex(x=>x.eh_rossignoli)+1;
+  const gaps=eu?D.map(x=>{ const lider=Math.max(...R.map(y=>y.por_dimensao[x.dimensao]||0)); return {dim:x.dimensao,peso:x.peso,eu:eu.por_dimensao[x.dimensao]||0,lider,ganho:(lider-(eu.por_dimensao[x.dimensao]||0))*x.peso/100}; }).sort((a,b)=>b.ganho-a.ganho):[];
+  v.innerHTML=`<div class="bar"><h2>Concorrência e relevância</h2><span class="mute small">Medição de ${dt(R[0]&&R[0].data)} · ${R.length} empresas</span><button class="btn sec" id="novoP">+ Concorrente</button></div>
+  <div class="kpis"><div class="kpi"><b>${eu?eu.indice:'—'}</b><small>índice da Rossignoli (0 a 100)</small></div><div class="kpi"><b>${pos||'—'}º</b><small>de ${R.length} no mapa completo</small></div><div class="kpi"><b>${R[0]?R[0].indice:'—'}</b><small>líder: ${esc(R[0]&&R[0].nome)}</small></div></div>
+  <div class="card"><h3>Onde a Rossignoli mais pode ganhar pontos</h3><ol>${gaps.slice(0,3).map(g=>`<li><b>${esc(g.dim)}</b> — Rossignoli ${g.eu} × líder ${g.lider} (até +${g.ganho.toFixed(1)} pts no índice). ${esc(DICAS[g.dim]||'')}</li>`).join('')}</ol></div>
+  <div class="tw"><table><thead><tr><th>#</th><th>Empresa</th><th class="n">Índice</th>${D.map(x=>`<th class="n" title="peso ${x.peso}">${esc(x.dimensao.split(' (')[0])}</th>`).join('')}<th class="n">Cobertura</th></tr></thead><tbody>${
+    R.map((x,i)=>`<tr data-n="${esc(x.nome)}" style="${x.eh_rossignoli?'background:#FBEDE4;font-weight:600':''}"><td>${i+1}</td><td>${esc(x.nome)}</td><td class="n"><b>${x.indice}</b></td>${D.map(y=>`<td class="n">${x.por_dimensao[y.dimensao]??0}</td>`).join('')}<td class="n mute">${x.cobertura_pct}%</td></tr>`).join('')}</tbody></table></div>
+  <p class="small mute">Cada dimensão vai de 0 a 100 (100 = melhor da região na data). Cobertura = quanto de cada empresa já foi medido. Clique numa empresa para ver onde ela aparece e editar.</p>`;
+  v.querySelector('tbody').onclick=e=>{ const tr=e.target.closest('tr'); const pl=P.find(x=>x.nome===tr.dataset.n); if(pl) gaveta('players',pl,pl.nome,concorrencia); };
+  $('#novoP').onclick=()=>gaveta('players',{ativo:true},'Novo concorrente',concorrencia);
+}
+
+/* Inteligência de mercado */
+async function inteligencia(){
+  const v=$('#view'); const {data,error}=await sb.from('notas').select('*').order('ordem'); if(error) return toast(error.message);
+  const cats=[...new Set(data.map(n=>n.categoria))];
+  v.innerHTML=`<div class="bar"><h2>Inteligência de mercado</h2><button class="btn" id="novo">+ Nota</button></div>${
+    cats.map(c=>`<h3 style="margin:16px 0 8px">${esc(c)}</h3>${data.filter(n=>n.categoria===c).map(n=>`<div class="card" data-id="${n.id}" style="cursor:pointer"><h3>${esc(n.titulo)}</h3><div class="small" style="white-space:pre-line">${esc(n.conteudo)}</div></div>`).join('')}`).join('')}`;
+  v.onclick=e=>{ const c=e.target.closest('.card[data-id]'); if(c){ const n=data.find(x=>x.id===c.dataset.id); gaveta('notas',n,n.titulo,inteligencia); } };
+  $('#novo').onclick=e=>{ e.stopPropagation(); gaveta('notas',{ordem:100},'Nova nota',inteligencia); };
+}
+
+const modelos=()=>simples('modelos_mensagem','Modelos de mensagem','etapa',true,
+  [['Etapa',r=>r.etapa],['Canal',r=>esc(lab('canal',r.canal))],['Nome',r=>`<b>${esc(r.nome)}</b>`],['Segmento',r=>esc(r.segmento||'Todos')],['Texto',r=>`<span class="small">${esc(r.texto.slice(0,160))}…</span>`],['Ativo',r=>r.ativo?'sim':'não']],
+  ()=>({etapa:1,canal:'whatsapp',ativo:true}), r=>r.nome);
 
 /* ---------- Login ---------- */
 $('#fLogin').onsubmit=async e=>{
