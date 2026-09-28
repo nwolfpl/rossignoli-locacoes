@@ -376,6 +376,17 @@ function abrePedido(p,depois){
   const t=d.querySelector('#pTel'); if(t) t.addEventListener('click',respondeu);
 }
 
+/* Atualidade do contato: fonte, data e situação (confirmado por conversa, a confirmar, desatualizado, empresa fechada) */
+const SIT_CONTATO = {confirmado:['Confirmado','fechado'], a_confirmar:['A confirmar','novo'], desatualizado:['Desatualizado','perdido'], empresa_fechada:['Empresa fechada','perdido']};
+const diasDesde = d => d ? Math.round((Date.now()-new Date(d+'T12:00'))/864e5) : null;
+const contatoVelho = c => c.contato_situacao==='a_confirmar' && diasDesde(c.contato_verificado_em) > 180;
+function seloContato(c, longo){
+  const [rot,cls]=SIT_CONTATO[c.contato_situacao]||SIT_CONTATO.a_confirmar, d=diasDesde(c.contato_verificado_em);
+  const quando=d==null?'':d===0?'hoje':d===1?'ontem':d<60?`há ${d} dias`:`em ${dt(c.contato_verificado_em)}`;
+  const txt=longo?`${rot}${c.contato_fonte?' · '+c.contato_fonte:''}${quando?' · '+quando:''}${c.empresa_situacao&&c.empresa_situacao!=='ATIVA'?' · Receita: '+c.empresa_situacao:''}`:rot;
+  return `<span class="pill p-${contatoVelho(c)?'perdido':cls}" title="${esc(`Contato: ${rot}. Fonte: ${c.contato_fonte||'?'}${quando?', '+quando:''}.`)}">${esc(txt)}${contatoVelho(c)&&!longo?' (antigo)':''}</span>`;
+}
+
 /* Vi uma obra: quem passa por um canteiro registra a construtora da placa e a obra vira conta com próximo passo hoje */
 const OBRAS = {
   construcao:['Construção de prédio ou casa','Construtoras e obras','Obra em andamento: laje, pré-moldados, estrutura metálica e caixa d\'água precisam de içamento.'],
@@ -423,7 +434,7 @@ function viUmaObra(depois){
 }
 
 /* Contas */
-const VISTAS=[['todas','Todas'],['hoje','Para hoje'],['novas','Novas (7 dias)'],['negociando','Em negociação'],['paradas','Paradas há +7 dias'],['semdec','Sem decisor'],['semtel','Sem telefone'],['minhas','Minhas'],['clientes','Clientes']];
+const VISTAS=[['todas','Todas'],['hoje','Para hoje'],['novas','Novas (7 dias)'],['negociando','Em negociação'],['paradas','Paradas há +7 dias'],['revisar','Contato a revisar'],['semdec','Sem decisor'],['semtel','Sem telefone'],['minhas','Minhas'],['clientes','Clientes']];
 // a importação inicial (26 e 28/09/2026) não conta como novidade
 const ehNova=c=>!!c.encontrado_em&&c.encontrado_em>=iso(new Date(Date.now()-7*864e5))&&!/prospecção inicial/i.test(c.fonte_lead||'')&&!/28\/09\/2026|26\/09\/2026/.test(c.origem_dado||'');
 const ABERTA=c=>['a_contatar','contatado','proposta'].includes(c.status);
@@ -432,6 +443,7 @@ const naVista=(k,c)=>{ const h=hoje(), d7=iso(new Date(Date.now()-7*864e5));
     :k==='novas'?ehNova(c)
     :k==='negociando'?c.status==='proposta'||/orçamento/i.test(c.proximo_passo||'')
     :k==='paradas'?['contatado','proposta'].includes(c.status)&&(!c.ultimo_contato_em||c.ultimo_contato_em.slice(0,10)<d7)
+    :k==='revisar'?ABERTA(c)&&(['desatualizado','empresa_fechada'].includes(c.contato_situacao)||contatoVelho(c)||(c.empresa_situacao&&c.empresa_situacao!=='ATIVA'))
     :k==='semdec'?ABERTA(c)&&!!c.telefone&&!c.decisor_nome
     :k==='semtel'?ABERTA(c)&&!c.telefone
     :k==='minhas'?c.responsavel===EU
@@ -459,7 +471,7 @@ async function contas(){
     const L=q?base:base.filter(c=>naVista(vista,c));   // quem digita um nome quer achar a conta, esteja em que vista estiver
     if(vista==='hoje') L.sort((a,b)=>a.proximo_passo_em.localeCompare(b.proximo_passo_em)||(b.pontuacao||0)-(a.pontuacao||0));
     $('#lista').innerHTML=`<div class="count">${L.length} de ${all.length} contas${q?' · buscando em todas as vistas':''}</div><div class="tw"><table><thead><tr><th class="n">Pts</th><th>Empresa</th><th>Cidade</th><th>Telefone</th><th>Status</th><th>Próximo passo</th><th>Resp.</th></tr></thead><tbody>${
-      L.map(c=>`<tr data-id="${c.id}"><td class="n"><b>${c.pontuacao??''}</b></td><td><b>${esc(c.nome)}</b> ${pill(c.prioridade)}${ehNova(c)?' <span class="pill p-novo">novo</span>':''}${c.tipo==='parceiro'?' <span class="pill">parceiro</span>':''}<br><span class="mute small">${esc(c.segmento)}${c.decisor_nome?` · decisor: ${esc(c.decisor_nome)}`:''}</span></td><td>${esc(c.cidade)}</td><td class="small">${c.telefone?`<a href="tel:${dig(c.telefone)}" onclick="event.stopPropagation()">${esc(c.telefone)}</a>`:'<span class="late">pesquisar</span>'}</td><td>${pill(c.status,lab('conta_status',c.status))}${c.etapa?`<br><span class="mute small">etapa ${c.etapa}</span>`:''}</td><td class="small">${c.proximo_passo_em?`<span class="${c.proximo_passo_em<hoje()?'late':''}">${dt(c.proximo_passo_em)}</span> `:''}${esc(c.proximo_passo)}</td><td class="small mute">${esc((c.responsavel||'').split('@')[0])}</td></tr>`).join('')||'<tr><td colspan="7" class="mute">Nada nesta vista.</td></tr>'
+      L.map(c=>`<tr data-id="${c.id}"><td class="n"><b>${c.pontuacao??''}</b></td><td><b>${esc(c.nome)}</b> ${pill(c.prioridade)}${ehNova(c)?' <span class="pill p-novo">novo</span>':''}${c.tipo==='parceiro'?' <span class="pill">parceiro</span>':''}<br><span class="mute small">${esc(c.segmento)}${c.decisor_nome?` · decisor: ${esc(c.decisor_nome)}`:''}</span></td><td>${esc(c.cidade)}</td><td class="small">${c.telefone?`<a href="tel:${dig(c.telefone)}" onclick="event.stopPropagation()">${esc(c.telefone)}</a>`:'<span class="late">pesquisar</span>'}<br>${seloContato(c)}</td><td>${pill(c.status,lab('conta_status',c.status))}${c.etapa?`<br><span class="mute small">etapa ${c.etapa}</span>`:''}</td><td class="small">${c.proximo_passo_em?`<span class="${c.proximo_passo_em<hoje()?'late':''}">${dt(c.proximo_passo_em)}</span> `:''}${esc(c.proximo_passo)}</td><td class="small mute">${esc((c.responsavel||'').split('@')[0])}</td></tr>`).join('')||'<tr><td colspan="7" class="mute">Nada nesta vista.</td></tr>'
     }</tbody></table></div>`;
     $('#lista tbody').onclick=e=>{ const tr=e.target.closest('tr[data-id]'); if(tr) abreConta(all.find(x=>x.id===tr.dataset.id)); };
   };
@@ -467,6 +479,7 @@ async function contas(){
   const recarrega=()=>contas();
   async function abreConta(c){
     const topo=`<p class="small mute" style="margin:-4px 0 10px">${esc(c.segmento||'')} · ${esc(c.cidade||'')} · ${pill(c.status,lab('conta_status',c.status))}${c.proximo_passo?` · próximo: <b>${esc(c.proximo_passo)}</b> ${dt(c.proximo_passo_em)}`:''}</p>
+      <p class="small" style="margin:-4px 0 10px">Contato: ${seloContato(c,true)}</p>
       ${c.por_que_precisa||c.como_abordar?`<div class="card small"><b>Por que precisa:</b> ${esc(c.por_que_precisa||'—')}<br><b>Como abordar:</b> ${esc(c.como_abordar||'—')}</div>`:''}
       <div class="card">${blocoContato(c,true)}</div>
       <div class="hist"><h3>Histórico</h3><ul id="lAt"><li class="mute">Carregando…</li></ul></div>`;
@@ -603,7 +616,8 @@ async function fila(){
   const jaHoje=new Set((feitos.data||[]).map(x=>x.conta_id));
   const retorno=new Set((a.data||[]).map(c=>c.id));
   // retornos vencidos primeiro; depois contas novas de maior pontuação; some quem já foi trabalhado hoje
-  const POOL=[...(a.data||[]),...(b.data||[])].filter((c,i,arr)=>!jaHoje.has(c.id)&&arr.findIndex(x=>x.id===c.id)===i);
+  // fora da fila: quem já foi trabalhado hoje e empresa fechada (Receita ou Maps)
+  const POOL=[...(a.data||[]),...(b.data||[])].filter((c,i,arr)=>!jaHoje.has(c.id)&&arr.findIndex(x=>x.id===c.id)===i&&c.contato_situacao!=='empresa_fechada'&&!['BAIXADA','INAPTA','NULA'].includes(c.empresa_situacao));
   const P=p.data||[];
   const uniq=k=>[...new Set(POOL.map(c=>c[k]).filter(Boolean))].sort((x,y)=>x.localeCompare(y));
   const sel=(id,rot,L)=>`<select class="in" id="${id}"><option value="">${rot}</option>${L.map(([k,t])=>`<option value="${esc(k)}">${esc(t)}</option>`).join('')}</select>`;
@@ -643,7 +657,7 @@ async function fila(){
     $('#fAtivos').textContent=nAt?`(${nAt} ativo${nAt>1?'s':''})`:'';
     $('#filaL').innerHTML=`<div class="count">${L.length?`Mostrando ${L.length} de ${todos.length}${filtrado?' com esses filtros':''}${falta?'':' · meta do dia batida, estes são extras'}`:''}</div>
     ${L.length?'':`<p class="mute">${filtrado?'Nada com esses filtros.':'Fila vazia por hoje.'}</p>`}
-    ${L.map((c,i)=>`<div class="card" data-i="${i}"><div class="bar" style="margin-bottom:6px"><h3 style="margin:0">${esc(c.nome)}</h3>${pill(c.prioridade)} <span class="pill">${c.pontuacao??''} pts</span> <span class="mute small">${esc(c.segmento||'')} · ${esc(c.cidade||'')} · etapa ${c.etapa||0}${c.proximo_passo?` · <span class="${c.proximo_passo_em&&c.proximo_passo_em<h?'late':''}">${esc(c.proximo_passo)}</span>`:''}</span>
+    ${L.map((c,i)=>`<div class="card" data-i="${i}"><div class="bar" style="margin-bottom:6px"><h3 style="margin:0">${esc(c.nome)}</h3>${pill(c.prioridade)} <span class="pill">${c.pontuacao??''} pts</span> ${seloContato(c)} <span class="mute small">${esc(c.segmento||'')} · ${esc(c.cidade||'')} · etapa ${c.etapa||0}${c.proximo_passo?` · <span class="${c.proximo_passo_em&&c.proximo_passo_em<h?'late':''}">${esc(c.proximo_passo)}</span>`:''}</span>
         <button class="btn sec" data-adia="${i}" style="margin-left:auto">Adiar 1 dia útil</button></div>
       <p class="small mute" style="margin:0 0 6px">${esc(c.por_que_precisa||'')}${c.como_abordar?` <b>Abordagem:</b> ${esc(c.como_abordar)}`:''}</p>
       ${blocoContato(c)}</div>`).join('')}`;
