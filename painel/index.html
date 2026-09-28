@@ -129,7 +129,7 @@ const F = {
   pedidos:[['nome','Cliente'],['telefone','Telefone'],['empresa','Empresa'],['cidade','Cidade'],['servico','Serviço / carga'],['origem','Origem','sel','origem'],
     ['status','Status','sel','pedido_status'],['data_servico','Data do serviço','date'],['valor_orcado','Valor orçado (R$)','num'],['valor_fechado','Valor fechado (R$)','num'],
     ['motivo_perda','Motivo se perdido','txt',null,1],['mensagem','Mensagem recebida','area',null,1],['observacoes','Observações','area',null,1]],
-  contas:[['nome','Empresa','txt',null,1],['tipo','Tipo','sel','tipo_conta'],['segmento','Segmento'],['cidade','Cidade'],['telefone','Telefone'],['site','Site'],
+  contas:[['nome','Empresa','txt',null,1],['tipo','Tipo','sel','tipo_conta'],['segmento','Segmento'],['cidade','Cidade'],['telefone','Telefone'],['site','Site'],['endereco','Endereço','txt',null,1],
     ['prioridade','Prioridade','sel','prioridade'],['status','Status','sel','conta_status'],['proximo_passo','Próximo passo','txt',null,1],['proximo_passo_em','Data do próximo passo','date'],
     ['por_que_precisa','Por que precisa de munck','area',null,1],['como_abordar','Como abordar','area',null,1],['observacoes','Observações','area',null,1]],
   licitacoes:[['orgao','Órgão','txt',null,1],['cidade','Cidade'],['processo','Processo'],['objeto','Objeto','area',null,1],['valor_texto','Valor'],['abertura','Abertura','date'],
@@ -200,7 +200,7 @@ async function resumo(){
     sb.from('contas').select('id,nome,proximo_passo,proximo_passo_em').not('proximo_passo_em','is',null).lte('proximo_passo_em',new Date(Date.now()+7*864e5).toISOString().slice(0,10)).order('proximo_passo_em').limit(10),
     sb.from('agenda').select('*').gte('fim',new Date().toISOString()).order('inicio').limit(5),
     sb.from('v_pedidos_por_origem').select('*').eq('mes',mes),
-    sb.from('ranking_semanal').select('*').order('data',{ascending:false}).limit(1),
+    sb.from('ranking_semanal').select('*').eq('busca','caminhão munck em Varginha MG').order('data',{ascending:false}).limit(1),
     sb.from('licitacoes').select('orgao,proxima_janela,status,acao').in('status',['monitorar','preparar']).order('proxima_janela',{nullsFirst:false}).limit(5)
   ]);
   const [rel,fv]=await Promise.all([sb.from('v_relevancia').select('nome,indice,eh_rossignoli').order('indice',{ascending:false}),
