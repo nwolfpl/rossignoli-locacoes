@@ -755,9 +755,19 @@ footer a{color:#EDE9E3}
     if(window.gtag) gtag('event',name,params);
     if(window.fbq && /^wa_|^call_/.test(name)) fbq('track','Contact',params);
   }
+  // Registro do pedido no painel (Supabase). Chave pública: o site só consegue criar pedido, não lê nada.
+  var SB='https://vllghkaymxzlfprcvfmc.supabase.co/rest/v1/pedidos', SBK='sb_publishable_HqfLoJbcH5yfYkej7hDeGA_a8_Is3-p';
+  function canal(o){ o=(o||'').toLowerCase(); if(o==='gbp') return 'google_perfil'; if(/instagram/.test(o)) return 'instagram'; if(/olx/.test(o)) return 'olx'; return 'site'; }
+  function registra(extra){
+    var d={origem:canal(origem), utm_source:origem, utm_medium:p.get('utm_medium'), utm_campaign:p.get('utm_campaign'), pagina:location.pathname,
+           carga:val('carga')||null, cidade:val('cidade')||null, servico:val('carga')||null, mensagem:bubble.textContent};
+    for(var k in extra) d[k]=extra[k];
+    try{ fetch(SB,{method:'POST',keepalive:true,headers:{'apikey':SBK,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(d)}); }catch(e){}
+  }
   document.addEventListener('click',function(e){
     var a=e.target.closest('[data-ev]'); if(!a) return;
-    if(a.dataset.ev==='wa_builder') track('generate_lead',{metodo:'whatsapp',carga:val('carga'),cidade:val('cidade')});
+    if(a.dataset.ev==='wa_builder'){ track('generate_lead',{metodo:'whatsapp',carga:val('carga'),cidade:val('cidade')}); registra({}); }
+    if(a.dataset.ev==='wa_empresas') registra({carga:null,cidade:null,servico:'Empresa: cadastro de fornecedor / recorrente',mensagem:'Botão "Falar com a Rossignoli" da seção Para empresas'});
     track(a.dataset.ev);
   });
 })();

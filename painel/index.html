@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Painel · Rossignoli Locações</title>
+<link rel="icon" href="../favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#121212;--ink-2:#1C1B1A;--paper:#F4F1EC;--paper-2:#FBFAF7;--line:#DCD6CD;--orange:#CE581A;--orange-deep:#A8440F;--mute:#6E6861;--ok:#2F7D4F;--bad:#B3261E;--warn:#9A6A00;
+--display:"Barlow Condensed","Arial Narrow",sans-serif;--body:"Barlow",system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45}
+h1,h2,h3{font-family:var(--display);font-weight:800;text-transform:uppercase;margin:0;line-height:1}
+button,input,select,textarea{font:inherit;color:inherit}
+.hide{display:none!important}
+/* login */
+.login{min-height:100vh;display:grid;place-items:center;padding:16px;background:var(--ink)}
+.login form{background:var(--paper-2);padding:28px;border-radius:6px;width:100%;max-width:360px;display:grid;gap:12px}
+.login h1{font-size:30px}.login h1 span{color:var(--orange)}
+.err{color:var(--bad);font-size:14px;min-height:1.2em}
+/* app */
+header{background:var(--ink);color:#F4F1EC;position:sticky;top:0;z-index:5}
+.top{display:flex;align-items:center;gap:12px;padding:10px 16px}
+.top h1{font-size:20px;letter-spacing:.04em}.top h1 span{color:var(--orange)}
+.top .who{margin-left:auto;font-size:13px;color:#CFC8BE}
+.top button{background:none;border:1px solid #3A3734;color:#CFC8BE;border-radius:4px;padding:4px 10px;cursor:pointer}
+nav.tabs{display:flex;gap:2px;overflow-x:auto;padding:0 8px;scrollbar-width:none}
+nav.tabs button{background:none;border:0;color:#CFC8BE;padding:10px 12px;cursor:pointer;font-family:var(--display);font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:15px;border-bottom:3px solid transparent;white-space:nowrap}
+nav.tabs button.on{color:#fff;border-color:var(--orange)}
+main{max-width:1200px;margin:0 auto;padding:18px 16px 60px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+.bar h2{font-size:26px;margin-right:auto}
+.in,select.in,textarea.in{border:1px solid var(--line);background:#fff;border-radius:4px;padding:8px 10px;min-height:38px;width:100%}
+.bar .in{width:auto;min-width:140px}
+.btn{background:var(--orange);color:#fff;border:0;border-radius:4px;padding:9px 14px;cursor:pointer;font-weight:600}
+.btn:hover{background:var(--orange-deep)}
+.btn.sec{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.btn.del{background:#fff;color:var(--bad);border:1px solid var(--line)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:18px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+.kpi b{display:block;font-family:var(--display);font-size:34px;line-height:1}
+.kpi small{color:var(--mute)}
+.card{background:#fff;border:1px solid var(--line);border-radius:6px;padding:14px;margin-bottom:14px}
+.card h3{font-size:17px;margin-bottom:8px;letter-spacing:.03em}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+th{font-family:var(--display);text-transform:uppercase;letter-spacing:.05em;font-size:13px;color:var(--mute);text-align:left;padding:8px 10px;border-bottom:1.5px solid var(--ink);background:var(--paper-2);white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tbody tr{cursor:pointer}tbody tr:hover{background:#FBEDE4}
+td.n{text-align:right;font-variant-numeric:tabular-nums}
+.tw{overflow-x:auto}
+.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600;background:var(--paper);white-space:nowrap}
+.p-novo,.p-a_contatar,.p-monitorar{background:#FDE7DA;color:var(--orange-deep)}
+.p-fechado,.p-cliente,.p-ganha{background:#DFF0E5;color:var(--ok)}
+.p-perdido,.p-sem_interesse,.p-perdida{background:#F6DEDC;color:var(--bad)}
+.p-A{background:var(--ink);color:#fff}
+.mute{color:var(--mute)}.small{font-size:13px}
+.late{color:var(--bad);font-weight:600}
+.count{color:var(--mute);font-size:13px;margin:6px 2px}
+/* drawer */
+.shade{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:20}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(520px,100%);background:var(--paper-2);z-index:21;overflow:auto;padding:18px 18px 90px;box-shadow:-8px 0 24px rgba(0,0,0,.15)}
+.drawer h2{font-size:24px;margin-bottom:12px}
+.grid{display:grid;gap:10px;grid-template-columns:1fr 1fr}
+.grid .full{grid-column:1/-1}
+label.f{display:grid;gap:3px;font-size:13px;color:var(--mute)}
+label.f .in{color:var(--ink);font-size:15px}
+.actions{position:fixed;bottom:0;right:0;width:min(520px,100%);background:var(--paper-2);border-top:1px solid var(--line);padding:10px 18px;display:flex;gap:8px;z-index:22}
+.hist{margin-top:16px}.hist li{margin-bottom:6px}
+.bars{display:grid;gap:6px}
+.brow{display:grid;grid-template-columns:130px 1fr 40px;gap:8px;align-items:center;font-size:14px}
+.brow i{display:block;height:12px;background:var(--orange);border-radius:0 4px 4px 0}
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:8px 14px;border-radius:4px;z-index:30}
+@media(max-width:640px){.grid{grid-template-columns:1fr}.brow{grid-template-columns:100px 1fr 32px}}
+</style>
+</head>
+<body>
+
+<section class="login" id="login">
+  <form id="fLogin">
+    <h1>Rossignoli <span>Painel</span></h1>
+    <label class="f">Usuário<input class="in" name="u" autocomplete="username" required autocapitalize="none"></label>
+    <label class="f">Senha<input class="in" name="s" type="password" autocomplete="current-password" required></label>
+    <button class="btn" type="submit">Entrar</button>
+    <div class="err" id="lErr"></div>
+  </form>
+</section>
+
+<div id="app" class="hide">
+  <header>
+    <div class="top"><h1>Rossignoli <span>Painel</span></h1><span class="who" id="who"></span><button id="sair">Sair</button></div>
+    <nav class="tabs" id="tabs"></nav>
+  </header>
+  <main id="view"></main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const sb = supabase.createClient('https://vllghkaymxzlfprcvfmc.supabase.co','sb_publishable_HqfLoJbcH5yfYkej7hDeGA_a8_Is3-p');
+const DOM = '@rossignolilocacoes.com.br';
+const $ = s => document.querySelector(s);
+const esc = v => v==null ? '' : String(v).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const brl = v => v==null||v==='' ? '' : Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const dt = v => v ? new Date(v.length<=10 ? v+'T12:00' : v).toLocaleDateString('pt-BR') : '';
+const dth = v => v ? new Date(v).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}) : '';
+const hoje = () => new Date().toISOString().slice(0,10);
+function toast(t){ const d=document.createElement('div'); d.className='toast'; d.textContent=t; document.body.appendChild(d); setTimeout(()=>d.remove(),2200); }
+const pill = (v,lab) => v ? `<span class="pill p-${esc(v)}">${esc(lab||v.replace(/_/g,' '))}</span>` : '';
+
+/* ---------- Opções ---------- */
+const OP = {
+  pedido_status:[['novo','Novo'],['em_orcamento','Em orçamento'],['orcado','Orçado'],['fechado','Fechado'],['perdido','Perdido']],
+  origem:[['site','Site'],['google_perfil','Perfil do Google'],['whatsapp_direto','WhatsApp direto'],['instagram','Instagram'],['indicacao','Indicação'],['licitacao','Licitação'],['parceiro','Parceiro'],['olx','OLX'],['outro','Outro']],
+  conta_status:[['a_contatar','A contatar'],['contatado','Contatado'],['proposta','Proposta enviada'],['cliente','Cliente'],['sem_interesse','Sem interesse']],
+  tipo_conta:[['empresa','Empresa'],['parceiro','Parceiro'],['orgao_publico','Órgão público'],['concorrente','Concorrente']],
+  prioridade:[['A','A'],['B','B'],['C','C']],
+  atividade:[['ligacao','Ligação'],['whatsapp','WhatsApp'],['visita','Visita'],['email','E-mail'],['proposta','Proposta'],['outro','Outro']],
+  lic_status:[['monitorar','Monitorar'],['preparar','Preparar'],['enviada','Proposta enviada'],['ganha','Ganha'],['perdida','Perdida'],['encerrada','Encerrada']],
+  equip:[['munck','Munck'],['cesto','Cesto aéreo'],['munck+cesto','Munck + cesto']]
+};
+const lab = (k,v) => (OP[k].find(o=>o[0]===v)||[,v])[1];
+
+/* ---------- Formulários (campos por tabela) ---------- */
+const F = {
+  pedidos:[['nome','Cliente'],['telefone','Telefone'],['empresa','Empresa'],['cidade','Cidade'],['servico','Serviço / carga'],['origem','Origem','sel','origem'],
+    ['status','Status','sel','pedido_status'],['data_servico','Data do serviço','date'],['valor_orcado','Valor orçado (R$)','num'],['valor_fechado','Valor fechado (R$)','num'],
+    ['motivo_perda','Motivo se perdido','txt',null,1],['mensagem','Mensagem recebida','area',null,1],['observacoes','Observações','area',null,1]],
+  contas:[['nome','Empresa','txt',null,1],['tipo','Tipo','sel','tipo_conta'],['segmento','Segmento'],['cidade','Cidade'],['telefone','Telefone'],['site','Site'],
+    ['prioridade','Prioridade','sel','prioridade'],['status','Status','sel','conta_status'],['proximo_passo','Próximo passo','txt',null,1],['proximo_passo_em','Data do próximo passo','date'],
+    ['por_que_precisa','Por que precisa de munck','area',null,1],['como_abordar','Como abordar','area',null,1],['observacoes','Observações','area',null,1]],
+  licitacoes:[['orgao','Órgão','txt',null,1],['cidade','Cidade'],['processo','Processo'],['objeto','Objeto','area',null,1],['valor_texto','Valor'],['abertura','Abertura','date'],
+    ['status','Status','sel','lic_status'],['fonte','Fonte / link','txt',null,1],['observacoes','Observações','area',null,1]],
+  agenda:[['inicio','Início','dtl'],['fim','Fim','dtl'],['cidade','Cidade'],['equipamento','Equipamento','sel','equip'],['endereco','Endereço','txt',null,1],['observacoes','Observações','area',null,1]],
+  avaliacoes:[['cliente','Cliente'],['telefone','Telefone'],['cidade','Cidade'],['servico','Serviço'],['pedido_em','Pedido em','date'],['lembrete_em','Lembrete em','date'],
+    ['avaliou','Avaliou?','bool'],['respondida','Respondida?','bool'],['observacoes','Observações','area',null,1]],
+  ranking_semanal:[['data','Data','date'],['busca','Busca'],['posicao','Posição','num'],['total_resultados','Total de resultados','num'],['avaliacoes_rossignoli','Avaliações','num'],['nota','Nota','num']]
+};
+
+function campo([k,l,t='txt',op,full],v){
+  const c = full ? ' full' : '';
+  if(t==='sel') return `<label class="f${c}">${l}<select class="in" name="${k}"><option value=""></option>${OP[op].map(o=>`<option value="${o[0]}" ${o[0]===v?'selected':''}>${o[1]}</option>`).join('')}</select></label>`;
+  if(t==='area') return `<label class="f${c}">${l}<textarea class="in" name="${k}" rows="3">${esc(v)}</textarea></label>`;
+  if(t==='bool') return `<label class="f${c}">${l}<select class="in" name="${k}"><option value="false" ${v?'':'selected'}>Não</option><option value="true" ${v?'selected':''}>Sim</option></select></label>`;
+  const ty = t==='date'?'date':t==='num'?'number" step="any':t==='dtl'?'datetime-local':'text';
+  let val = v; if(t==='dtl'&&v) val = new Date(new Date(v).getTime()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+  return `<label class="f${c}">${l}<input class="in" type="${ty}" name="${k}" value="${esc(val)}"></label>`;
+}
+function ler(form,tab){
+  const o={}; for(const [k,,t] of F[tab]){ let v=form.elements[k].value;
+    if(v===''){ o[k]=null; continue; }
+    if(t==='num') v=Number(v); if(t==='bool') v=(v==='true'); if(t==='dtl') v=new Date(v).toISOString();
+    o[k]=v; } return o;
+}
+
+/* ---------- Gaveta de edição ---------- */
+function gaveta(tab,reg,titulo,depois,extraHtml=''){
+  fecha();
+  const sh=document.createElement('div'); sh.className='shade'; sh.onclick=fecha;
+  const d=document.createElement('div'); d.className='drawer';
+  d.innerHTML=`<h2>${esc(titulo)}</h2><form class="grid" id="fEd">${F[tab].map(f=>campo(f,reg[f[0]])).join('')}</form>${extraHtml}`;
+  const a=document.createElement('div'); a.className='actions';
+  a.innerHTML=`<button class="btn" id="bSalva">Salvar</button><button class="btn sec" id="bFecha">Fechar</button>${reg.id?'<button class="btn del" id="bApaga" style="margin-left:auto">Apagar</button>':''}`;
+  document.body.append(sh,d,a);
+  $('#bFecha').onclick=fecha;
+  $('#bSalva').onclick=async()=>{
+    const dados=ler($('#fEd'),tab);
+    const q = reg.id ? sb.from(tab).update(dados).eq('id',reg.id) : (tab==='ranking_semanal' ? sb.from(tab).upsert(dados) : sb.from(tab).insert(dados));
+    const {error}=await q; if(error) return toast('Erro: '+error.message);
+    toast('Salvo'); fecha(); depois&&depois();
+  };
+  if(reg.id) $('#bApaga').onclick=async()=>{ if(!confirm('Apagar este registro?')) return; const {error}=await sb.from(tab).delete().eq('id',reg.id); if(error) return toast('Erro: '+error.message); toast('Apagado'); fecha(); depois&&depois(); };
+  return d;
+}
+function fecha(){ document.querySelectorAll('.shade,.drawer,.actions').forEach(e=>e.remove()); }
+
+/* ---------- Abas ---------- */
+const ABAS = [['resumo','Resumo'],['pedidos','Pedidos'],['contas','Contas'],['agenda','Agenda'],['avaliacoes','Avaliações'],['licitacoes','Licitações'],['ranking','Ranking']];
+let aba = (location.hash.slice(1) || 'resumo');
+function tabs(){ $('#tabs').innerHTML = ABAS.map(([k,l])=>`<button data-k="${k}" class="${k===aba?'on':''}">${l}</button>`).join(''); }
+$('#tabs').onclick = e => { const b=e.target.closest('button'); if(!b) return; aba=b.dataset.k; location.hash=aba; render(); };
+function render(){ tabs(); ({resumo,pedidos,contas,agenda,avaliacoes,licitacoes,ranking}[aba]||resumo)(); }
+
+/* Resumo */
+async function resumo(){
+  const v=$('#view'); v.innerHTML='<p class="mute">Carregando…</p>';
+  const ini=new Date(); ini.setDate(1); const mes=ini.toISOString().slice(0,10);
+  const [pm,pn,cs,prox,ag,orig,rk,lic]=await Promise.all([
+    sb.from('pedidos').select('status,valor_fechado').gte('criado_em',mes),
+    sb.from('pedidos').select('id',{count:'exact',head:true}).eq('status','novo'),
+    sb.from('contas').select('status'),
+    sb.from('contas').select('id,nome,proximo_passo,proximo_passo_em').not('proximo_passo_em','is',null).lte('proximo_passo_em',new Date(Date.now()+7*864e5).toISOString().slice(0,10)).order('proximo_passo_em').limit(10),
+    sb.from('agenda').select('*').gte('fim',new Date().toISOString()).order('inicio').limit(5),
+    sb.from('v_pedidos_por_origem').select('*').eq('mes',mes),
+    sb.from('ranking_semanal').select('*').order('data',{ascending:false}).limit(1),
+    sb.from('licitacoes').select('orgao,abertura,status').in('status',['monitorar','preparar']).not('abertura','is',null).gte('abertura',hoje()).order('abertura').limit(5)
+  ]);
+  const P=pm.data||[], fech=P.filter(p=>p.status==='fechado'), fat=fech.reduce((s,p)=>s+Number(p.valor_fechado||0),0);
+  const C=cs.data||[], cnt=s=>C.filter(c=>c.status===s).length;
+  const r=(rk.data||[])[0];
+  const O=orig.data||[], maxO=Math.max(1,...O.map(o=>o.pedidos));
+  v.innerHTML=`
+  <div class="bar"><h2>Resumo</h2><span class="mute small">${new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'})}</span></div>
+  <div class="kpis">
+    <div class="kpi"><b>${P.length}</b><small>pedidos no mês</small></div>
+    <div class="kpi"><b>${pn.count||0}</b><small>pedidos novos sem resposta</small></div>
+    <div class="kpi"><b>${fech.length}</b><small>fechados no mês</small></div>
+    <div class="kpi"><b>${brl(fat)||'R$ 0'}</b><small>faturado no mês (registrado)</small></div>
+    <div class="kpi"><b>${r?(r.posicao?r.posicao+'º':'—'):'—'}</b><small>no Maps em Varginha${r?' · '+dt(r.data):''}</small></div>
+    <div class="kpi"><b>${C.length-cnt('a_contatar')}/${C.length}</b><small>contas já contatadas</small></div>
+  </div>
+  <div class="card"><h3>Pedidos por origem no mês</h3>${O.length?`<div class="bars">${O.map(o=>`<div class="brow"><span>${esc(lab('origem',o.origem))}</span><i style="width:${o.pedidos/maxO*100}%"></i><span class="n">${o.pedidos}</span></div>`).join('')}</div>`:'<p class="mute">Nenhum pedido ainda neste mês.</p>'}</div>
+  <div class="card"><h3>Próximos passos (atrasados e próximos 7 dias)</h3>${(prox.data||[]).length?'<ul>'+prox.data.map(c=>`<li><span class="${c.proximo_passo_em<hoje()?'late':''}">${dt(c.proximo_passo_em)}</span> · <b>${esc(c.nome)}</b> — ${esc(c.proximo_passo)}</li>`).join('')+'</ul>':'<p class="mute">Nada marcado. Defina próximos passos na aba Contas.</p>'}</div>
+  <div class="card"><h3>Agenda do caminhão</h3>${(ag.data||[]).length?'<ul>'+ag.data.map(a=>`<li>${dth(a.inicio)} · ${esc(a.cidade||'')} ${esc(a.equipamento||'')} ${esc(a.observacoes||'')}</li>`).join('')+'</ul>':'<p class="mute">Nada agendado.</p>'}</div>
+  <div class="card"><h3>Contas por status</h3><div class="bars">${OP.conta_status.map(([k,l])=>`<div class="brow"><span>${l}</span><i style="width:${cnt(k)/Math.max(1,C.length)*100}%"></i><span class="n">${cnt(k)}</span></div>`).join('')}</div></div>
+  <div class="card"><h3>Licitações com abertura marcada</h3>${(lic.data||[]).length?'<ul>'+lic.data.map(l=>`<li>${dt(l.abertura)} · ${esc(l.orgao)} ${pill(l.status)}</li>`).join('')+'</ul>':'<p class="mute">Nenhuma com data futura. Veja a aba Licitações.</p>'}</div>`;
+}
+
+/* Pedidos */
+async function pedidos(){
+  const v=$('#view');
+  v.innerHTML=`<div class="bar"><h2>Pedidos</h2><select class="in" id="fSt"><option value="">Todos os status</option>${OP.pedido_status.map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('')}</select><button class="btn" id="novo">+ Pedido</button></div><div id="lista"></div>`;
+  const carrega=async()=>{
+    let q=sb.from('pedidos').select('*').order('criado_em',{ascending:false}).limit(300);
+    const st=$('#fSt').value; if(st) q=q.eq('status',st);
+    const {data,error}=await q; if(error) return toast(error.message);
+    $('#lista').innerHTML=`<div class="count">${data.length} pedido(s)</div><div class="tw"><table><thead><tr><th>Data</th><th>Cliente</th><th>Cidade</th><th>Serviço</th><th>Origem</th><th>Status</th><th class="n">Valor</th></tr></thead><tbody>${
+      data.map(p=>`<tr data-id="${p.id}"><td>${dth(p.criado_em)}</td><td>${esc(p.nome||p.empresa||'—')}</td><td>${esc(p.cidade)}</td><td>${esc(p.servico||p.carga)}</td><td>${esc(lab('origem',p.origem))}${p.utm_source?`<br><span class="mute small">${esc(p.utm_source)}</span>`:''}</td><td>${pill(p.status,lab('pedido_status',p.status))}</td><td class="n">${brl(p.valor_fechado||p.valor_orcado)}</td></tr>`).join('')
+    }</tbody></table></div>`;
+    $('#lista tbody').onclick=e=>{ const tr=e.target.closest('tr'); const p=data.find(x=>x.id===tr.dataset.id); gaveta('pedidos',p,'Pedido de '+dth(p.criado_em),carrega); };
+  };
+  $('#fSt').onchange=carrega;
+  $('#novo').onclick=()=>gaveta('pedidos',{origem:'whatsapp_direto',status:'novo'},'Novo pedido',carrega);
+  carrega();
+}
+
+/* Contas */
+async function contas(){
+  const v=$('#view');
+  const {data:all,error}=await sb.from('contas').select('*').order('prioridade').order('nome'); if(error) return toast(error.message);
+  const uniq=k=>[...new Set(all.map(c=>c[k]).filter(Boolean))].sort();
+  v.innerHTML=`<div class="bar"><h2>Contas</h2>
+    <input class="in" id="q" placeholder="Buscar nome…">
+    <select class="in" id="fSeg"><option value="">Todos os segmentos</option>${uniq('segmento').map(s=>`<option>${esc(s)}</option>`).join('')}</select>
+    <select class="in" id="fCid"><option value="">Todas as cidades</option>${uniq('cidade').map(s=>`<option>${esc(s)}</option>`).join('')}</select>
+    <select class="in" id="fPri"><option value="">Prioridade</option><option>A</option><option>B</option><option>C</option></select>
+    <select class="in" id="fSt"><option value="">Todos os status</option>${OP.conta_status.map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('')}</select>
+    <button class="btn" id="novo">+ Conta</button></div><div id="lista"></div>`;
+  const desenha=()=>{
+    const q=$('#q').value.toLowerCase(), s=$('#fSeg').value, ci=$('#fCid').value, pr=$('#fPri').value, st=$('#fSt').value;
+    const L=all.filter(c=>(!q||c.nome.toLowerCase().includes(q))&&(!s||c.segmento===s)&&(!ci||c.cidade===ci)&&(!pr||c.prioridade===pr)&&(!st||c.status===st));
+    $('#lista').innerHTML=`<div class="count">${L.length} de ${all.length} contas</div><div class="tw"><table><thead><tr><th>Empresa</th><th>Segmento</th><th>Cidade</th><th>Telefone</th><th>Prior.</th><th>Status</th><th>Próximo passo</th></tr></thead><tbody>${
+      L.map(c=>`<tr data-id="${c.id}"><td><b>${esc(c.nome)}</b>${c.tipo==='parceiro'?' <span class="pill">parceiro</span>':''}</td><td class="small">${esc(c.segmento)}</td><td>${esc(c.cidade)}</td><td class="small">${c.telefone?`<a href="tel:${esc(c.telefone.replace(/\D/g,''))}" onclick="event.stopPropagation()">${esc(c.telefone)}</a>`:''}</td><td>${pill(c.prioridade)}</td><td>${pill(c.status,lab('conta_status',c.status))}</td><td class="small">${c.proximo_passo_em?`<span class="${c.proximo_passo_em<hoje()?'late':''}">${dt(c.proximo_passo_em)}</span> `:''}${esc(c.proximo_passo)}</td></tr>`).join('')
+    }</tbody></table></div>`;
+    $('#lista tbody').onclick=e=>{ const tr=e.target.closest('tr'); abreConta(all.find(x=>x.id===tr.dataset.id)); };
+  };
+  const recarrega=()=>contas();
+  async function abreConta(c){
+    const d=gaveta('contas',c,c.nome,recarrega,`<div class="hist"><h3>Histórico de contatos</h3>
+      <form class="grid" id="fAt" style="margin:8px 0"><select class="in" name="tipo">${OP.atividade.map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('')}</select><input class="in" name="resumo" placeholder="O que foi conversado" required><button class="btn sec full" type="submit">Registrar contato</button></form><ul id="lAt"><li class="mute">Carregando…</li></ul></div>`);
+    const lista=async()=>{ const {data}=await sb.from('atividades').select('*').eq('conta_id',c.id).order('feito_em',{ascending:false});
+      $('#lAt').innerHTML=(data||[]).length?data.map(a=>`<li><b>${dth(a.feito_em)}</b> · ${esc(lab('atividade',a.tipo))} · ${esc(a.resumo)} <span class="mute small">(${esc((a.feito_por||'').split('@')[0])})</span></li>`).join(''):'<li class="mute">Nenhum contato registrado.</li>'; };
+    $('#fAt').onsubmit=async e=>{ e.preventDefault(); const f=e.target;
+      const {error}=await sb.from('atividades').insert({conta_id:c.id,tipo:f.tipo.value,resumo:f.resumo.value}); if(error) return toast(error.message);
+      if(c.status==='a_contatar'){ await sb.from('contas').update({status:'contatado'}).eq('id',c.id); c.status='contatado'; d.querySelector('[name=status]').value='contatado'; }
+      f.resumo.value=''; lista(); toast('Contato registrado'); };
+    lista();
+  }
+  ['q','fSeg','fCid','fPri','fSt'].forEach(i=>$('#'+i).addEventListener('input',desenha));
+  $('#novo').onclick=()=>gaveta('contas',{tipo:'empresa',status:'a_contatar'},'Nova conta',recarrega);
+  desenha();
+}
+
+/* Tabelas simples */
+async function simples(tab,titulo,ordem,asc,colunas,novoPadrao,tituloReg){
+  const v=$('#view');
+  v.innerHTML=`<div class="bar"><h2>${titulo}</h2><button class="btn" id="novo">+ Adicionar</button></div><div id="lista"></div>`;
+  const carrega=async()=>{
+    const {data,error}=await sb.from(tab).select('*').order(ordem,{ascending:asc}); if(error) return toast(error.message);
+    $('#lista').innerHTML=`<div class="count">${data.length} registro(s)</div><div class="tw"><table><thead><tr>${colunas.map(c=>`<th>${c[0]}</th>`).join('')}</tr></thead><tbody>${
+      data.map((r,i)=>`<tr data-i="${i}">${colunas.map(c=>`<td>${c[1](r)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    $('#lista tbody').onclick=e=>{ const tr=e.target.closest('tr'); const r=data[tr.dataset.i]; gaveta(tab,r,tituloReg(r),carrega); };
+  };
+  $('#novo').onclick=()=>gaveta(tab,novoPadrao(),'Adicionar',carrega);
+  carrega();
+}
+const agenda=()=>simples('agenda','Agenda do caminhão','inicio',true,
+  [['Início',r=>dth(r.inicio)],['Fim',r=>dth(r.fim)],['Cidade',r=>esc(r.cidade)],['Equip.',r=>esc(r.equipamento)],['Endereço',r=>esc(r.endereco)],['Obs.',r=>esc(r.observacoes)]],
+  ()=>({equipamento:'munck'}), r=>'Agenda '+dth(r.inicio));
+const avaliacoes=()=>simples('avaliacoes','Pedidos de avaliação','pedido_em',false,
+  [['Pedido em',r=>dt(r.pedido_em)],['Cliente',r=>esc(r.cliente)],['Cidade',r=>esc(r.cidade)],['Serviço',r=>esc(r.servico)],['Lembrete',r=>`<span class="${!r.avaliou&&r.lembrete_em&&r.lembrete_em<=hoje()?'late':''}">${dt(r.lembrete_em)}</span>`],['Avaliou',r=>r.avaliou?pill('fechado','sim'):pill('novo','não')],['Respondida',r=>r.respondida?'sim':'não']],
+  ()=>({pedido_em:hoje(),lembrete_em:new Date(Date.now()+3*864e5).toISOString().slice(0,10),avaliou:false,respondida:false}), r=>r.cliente);
+const licitacoes=()=>simples('licitacoes','Licitações','criado_em',false,
+  [['Órgão',r=>`<b>${esc(r.orgao)}</b><br><span class="mute small">${esc(r.cidade)}</span>`],['Processo',r=>esc(r.processo)],['Objeto',r=>`<span class="small">${esc(r.objeto)}</span>`],['Valor',r=>esc(r.valor_texto)],['Abertura',r=>dt(r.abertura)],['Status',r=>pill(r.status,lab('lic_status',r.status))]],
+  ()=>({status:'monitorar'}), r=>r.orgao);
+const ranking=()=>simples('ranking_semanal','Ranking semanal no Google Maps','data',false,
+  [['Data',r=>dt(r.data)],['Busca',r=>esc(r.busca)],['Posição',r=>r.posicao?r.posicao+'º':'não aparece'],['Resultados',r=>r.total_resultados??''],['Avaliações',r=>r.avaliacoes_rossignoli??''],['Nota',r=>r.nota??'']],
+  ()=>({data:hoje(),busca:'caminhão munck em Varginha MG'}), r=>'Ranking '+dt(r.data));
+
+/* ---------- Login ---------- */
+$('#fLogin').onsubmit=async e=>{
+  e.preventDefault(); $('#lErr').textContent='';
+  const u=e.target.u.value.trim().toLowerCase(), s=e.target.s.value;
+  const email = u.includes('@') ? u : u+DOM;
+  const {error}=await sb.auth.signInWithPassword({email,password:s});
+  if(error) $('#lErr').textContent='Usuário ou senha incorretos.';
+};
+$('#sair').onclick=()=>sb.auth.signOut();
+sb.auth.onAuthStateChange((_ev,session)=>{
+  const on=!!session;
+  $('#login').classList.toggle('hide',on); $('#app').classList.toggle('hide',!on);
+  if(on){ $('#who').textContent=session.user.email.split('@')[0]; render(); }
+});
+</script>
+</body>
+</html>
