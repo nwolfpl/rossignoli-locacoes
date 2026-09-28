@@ -58,6 +58,8 @@ td.n{text-align:right;font-variant-numeric:tabular-nums}
 .p-A{background:var(--ink);color:#fff}
 .mute{color:var(--mute)}.small{font-size:13px}
 .late{color:var(--bad);font-weight:600}
+.p-a_fazer{background:#ECE8E1;color:#4A4540}.p-fazendo{background:#FDE7DA;color:var(--orange-deep)}.p-bloqueada{background:#F6DEDC;color:var(--bad)}.p-feita{background:#DFF0E5;color:var(--ok)}
+.grp{font-family:var(--display);font-weight:700;letter-spacing:.12em;text-transform:uppercase;font-size:14px;color:var(--orange-deep);background:var(--paper-2)}
 .count{color:var(--mute);font-size:13px;margin:6px 2px}
 /* drawer */
 .shade{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:20}
@@ -73,6 +75,20 @@ label.f .in{color:var(--ink);font-size:15px}
 .brow{display:grid;grid-template-columns:130px 1fr 40px;gap:8px;align-items:center;font-size:14px}
 .brow i{display:block;height:12px;background:var(--orange);border-radius:0 4px 4px 0}
 .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:8px 14px;border-radius:4px;z-index:30}
+/* trabalho com leads */
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.chip{border:1px solid var(--line);background:#fff;border-radius:14px;padding:4px 11px;font-size:13px;cursor:pointer;white-space:nowrap}
+.chip:hover{border-color:var(--orange)}.chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.chip b{font-weight:700;margin-left:3px}
+.res{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+.res.pede{background:#FDF3EC;border-radius:4px;padding:8px}
+.res .in{width:auto;min-height:32px;padding:4px 8px}
+.card.feito{opacity:.45}
+.prog{height:8px;background:var(--line);border-radius:4px;overflow:hidden;flex:1;min-width:120px;max-width:260px}
+.prog i{display:block;height:100%;background:var(--ok)}
+.aviso{background:#FFF6DB;border:1px solid #EBD89A;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:14px}
+.card.pedido{border-left:4px solid var(--orange)}
+details.ed{margin-top:16px}details.ed summary{cursor:pointer;font-family:var(--display);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
 @media(max-width:640px){.grid{grid-template-columns:1fr}.brow{grid-template-columns:100px 1fr 32px}}
 </style>
 </head>
@@ -105,7 +121,15 @@ const esc = v => v==null ? '' : String(v).replace(/[&<>"]/g, c => ({'&':'&amp;',
 const brl = v => v==null||v==='' ? '' : Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const dt = v => v ? new Date(v.length<=10 ? v+'T12:00' : v).toLocaleDateString('pt-BR') : '';
 const dth = v => v ? new Date(v).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}) : '';
-const hoje = () => new Date().toISOString().slice(0,10);
+const iso = d => new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10);
+const hoje = () => iso(new Date());
+const diaUtil = n => { const d=new Date(); let k=0; while(k<n){ d.setDate(d.getDate()+1); if(d.getDay()%6) k++; } return iso(d); };
+const duracao = (a,b) => { const m=Math.max(0,Math.round((new Date(b)-new Date(a))/6e4)); return m<60?m+' min':m<1440?Math.round(m/60)+' h':Math.round(m/1440)+' d'; };
+const idade = t => duracao(t,Date.now());
+const horaComercial = () => { const d=new Date(), h=d.getHours(); return d.getDay()%6!==0 && h>=8 && h<18; };
+const dig = t => String(t||'').replace(/\D/g,'');
+const ehCel = t => /^\d{2}9\d{8}$/.test(dig(t));
+let EU = '';
 function toast(t){ const d=document.createElement('div'); d.className='toast'; d.textContent=t; document.body.appendChild(d); setTimeout(()=>d.remove(),2200); }
 const pill = (v,lab) => v ? `<span class="pill p-${esc(v)}">${esc(lab||v.replace(/_/g,' '))}</span>` : '';
 
@@ -121,16 +145,87 @@ const OP = {
   equip:[['munck','Munck'],['cesto','Cesto aéreo'],['munck+cesto','Munck + cesto']],
   lic_tipo:[['licitacao','Licitação'],['contrato_em_execucao','Contrato em execução (subcontratação)'],['referencia','Referência / histórico']],
   canal:[['whatsapp','WhatsApp'],['ligacao','Ligação'],['visita','Visita'],['email','E-mail']],
-  vale:[['sim','Sim'],['talvez','Talvez'],['nao','Não']]
+  vale:[['sim','Sim'],['talvez','Talvez'],['nao','Não']],
+  tarefa_status:[['a_fazer','A fazer'],['fazendo','Fazendo'],['bloqueada','Bloqueada'],['feita','Feita']]
 };
 const lab = (k,v) => (OP[k].find(o=>o[0]===v)||[,v])[1];
+
+/* ---------- Contato com um clique: canal + resultado ---------- */
+const RES = {decisor:'Passou o decisor',enviado:'Mensagem enviada',nao_atendeu:'Não atendeu',interessado:'Tem interesse',proposta:'Orçamento enviado',retorno:'Pediu retorno',numero_errado:'Número errado',sem_interesse:'Sem interesse',cliente:'Fechou serviço'};
+// Sugestão de quem decide a contratação de içamento em cada segmento (o telefone do Maps costuma ser recepção/vendas)
+const QUEM_DECIDE = {
+  'Construtoras e obras':'engenheiro ou mestre de obras (pede o serviço) e compras/suprimentos (fecha o preço)',
+  'Pré-moldados':'gerente de produção ou de expedição; em fábrica pequena, o dono',
+  'Estruturas metálicas':'encarregado de montagem ou o dono',
+  'Energia solar':'coordenador de instalação ou o dono',
+  'Café: cooperativas, armazéns e exportadoras':'gerente do armazém ou da manutenção',
+  'Poda de árvores':'o dono ou o encarregado das equipes',
+  'Elétrica, iluminação e subestações':'engenheiro ou encarregado de campo',
+  'Indústrias':'manutenção industrial ou compras',
+  'Metalurgia e manutenção industrial':'encarregado de manutenção ou o dono',
+  'Contêiner e andaimes':'o dono ou quem cuida das entregas',
+  "Piscinas e caixas d'água":'o dono ou quem cuida da instalação/entrega',
+  'Material de construção':'gerente da loja ou responsável pelas entregas',
+  'Máquinas agrícolas e industriais':'gerente de pós-venda/entregas ou o dono'};
+const quemDecide = c => QUEM_DECIDE[c.segmento] || 'quem contrata frete e içamento (em empresa pequena, normalmente o dono)';
+const fone = c => c.decisor_telefone || c.telefone;
+const msgRecepcao = c => `Bom dia! Aqui é da Rossignoli Locações, de Varginha: caminhão munck com operador e cesto aéreo. Quem aí na ${c.nome.split(/ [-–|(]/)[0]} cuida da contratação de içamento ou frete de carga pesada? Pode me passar o nome e o contato dessa pessoa? Obrigado!`;
+let MODS = null;
+async function carregaModelos(){ if(!MODS){ const {data}=await sb.from('modelos_mensagem').select('*').eq('ativo',true); MODS=data||[]; } return MODS; }
+const modeloPara = c => { const et=Math.min((c.etapa||0)+1,5); return (MODS||[]).find(x=>x.etapa===et&&x.segmento===c.segmento)||(MODS||[]).find(x=>x.etapa===et&&!x.segmento)||null; };
+function preenche(txt,c){ const motivo=(c.por_que_precisa||'serviços de içamento').split(/[:;.]/)[0].toLowerCase();
+  return txt.replace(/\{empresa\}/g,c.nome.split(/ [-–|(]/)[0]).replace(/\{cidade\}/g,c.cidade&&!/Região|\//.test(c.cidade)?c.cidade:'Varginha e região').replace(/\{motivo\}/g,motivo); }
+function blocoContato(c){
+  const md=modeloPara(c), tel=fone(c), comDecisor=!!c.decisor_nome;
+  const txt=comDecisor&&md?preenche(md.texto,c).replace(/^(Ol[áa]|Bom dia|Boa tarde)[^!,.]*[!,.]/i,`$1, ${c.decisor_nome.split(' ')[0]}!`):msgRecepcao(c);
+  return `<div data-ctt>
+    <p class="small" style="margin:0 0 6px">${comDecisor?`<b>Decisor:</b> ${esc(c.decisor_nome)}${c.decisor_cargo?' · '+esc(c.decisor_cargo):''}${c.decisor_telefone?'':' <span class="mute">(sem telefone direto: pedir na recepção)</span>'}`:`<b>Objetivo deste contato:</b> achar quem decide — provável: ${esc(quemDecide(c))}. <span class="mute">O número do Maps costuma ser recepção/vendas.</span>`}</p>
+    ${tel?`<textarea class="in small" rows="4" data-msg>${esc(txt)}</textarea>`:''}
+    <div class="bar" style="margin:8px 0 0">
+      ${ehCel(tel)?`<button class="btn" data-a="wa">WhatsApp${horaComercial()?'':' (fora do horário)'}</button>`:''}
+      ${tel?`<a class="btn sec" href="tel:${dig(tel)}" data-a="tel">Ligar ${esc(tel)}${c.decisor_telefone?' (direto)':''}</a>`:'<span class="late small">Sem telefone: pesquisar no Maps antes</span>'}
+    </div>
+    <div class="res" data-res><span class="small mute">Como foi?</span>
+      ${['decisor','nao_atendeu','interessado','proposta','retorno','sem_interesse','numero_errado','cliente'].map(r=>`<button class="chip" data-r="${r}">${RES[r]}</button>`).join('')}
+      <span class="hide" data-dec style="display:flex;gap:6px;flex-wrap:wrap;width:100%"><input class="in" data-dn placeholder="Nome do decisor" value="${esc(c.decisor_nome||'')}"><input class="in" data-dc placeholder="Cargo" value="${esc(c.decisor_cargo||'')}"><input class="in" data-dt placeholder="Telefone direto" value="${esc(c.decisor_telefone||'')}"></span>
+      <input type="date" class="in hide" data-ret><input class="in small" data-nota placeholder="Anotação (opcional)" style="flex:1;min-width:160px">
+    </div></div>`;
+}
+// Liga os botões de um bloco de contato. feito(r) é chamado depois de registrar.
+function ligaContato(root,c,feito){
+  let canal=null; const md=modeloPara(c);
+  const reg=async(tipo,resultado,resumo,retorno_em)=>{
+    const {error}=await sb.from('atividades').insert({conta_id:c.id,tipo,resultado,resumo,retorno_em:retorno_em||null});
+    if(error){ toast('Erro: '+error.message); return false; } toast(RES[resultado]+' · próximo passo agendado'); feito&&feito(resultado); return true; };
+  root.addEventListener('click',async e=>{
+    const a=e.target.closest('[data-a],[data-r]'); if(!a||!root.contains(a)) return;
+    const res=root.querySelector('[data-res]'), nota=root.querySelector('[data-nota]'), ret=root.querySelector('[data-ret]');
+    if(a.dataset.a==='wa'){ const t=root.querySelector('[data-msg]');
+      window.open('https://wa.me/55'+dig(fone(c))+(t?'?text='+encodeURIComponent(t.value):''),'_blank'); canal='whatsapp';
+      await reg('whatsapp','enviado',(md?md.nome:'Mensagem')+' (etapa '+((c.etapa||0)+1)+')'); return; }
+    if(a.dataset.a==='tel'){ canal='ligacao'; res.classList.add('pede'); return; }   // o resultado da ligação vem nos botões abaixo
+    const r=a.dataset.r;
+    if(r==='decisor'){ const box=root.querySelector('[data-dec]');
+      if(box.classList.contains('hide')){ box.classList.remove('hide'); a.textContent='Salvar decisor'; box.querySelector('[data-dn]').focus(); return; }
+      const dn=box.querySelector('[data-dn]').value.trim(), dc=box.querySelector('[data-dc]').value.trim(), dt_=box.querySelector('[data-dt]').value.trim();
+      if(!dn) return toast('Coloque ao menos o nome do decisor');
+      const {error}=await sb.from('contas').update({decisor_nome:dn,decisor_cargo:dc||null,decisor_telefone:dt_||null}).eq('id',c.id); if(error) return toast('Erro: '+error.message);
+      Object.assign(c,{decisor_nome:dn,decisor_cargo:dc||null,decisor_telefone:dt_||null});
+      await reg(canal||(ehCel(c.telefone)?'whatsapp':'ligacao'),'decisor',`Decisor: ${dn}${dc?' ('+dc+')':''}${dt_?' · '+dt_:''}`); return; }
+    if(r==='retorno'&&ret.classList.contains('hide')){ ret.classList.remove('hide'); ret.value=diaUtil(5); a.textContent='Confirmar retorno'; ret.focus(); return; }
+    if(r==='sem_interesse'&&!confirm('Marcar '+c.nome+' como sem interesse?')) return;
+    const tipo=canal||(r==='nao_atendeu'?'ligacao':ehCel(fone(c))?'whatsapp':'ligacao');
+    await reg(tipo,r,(nota&&nota.value.trim())||RES[r],r==='retorno'?ret.value:null);
+  });
+}
 
 /* ---------- Formulários (campos por tabela) ---------- */
 const F = {
   pedidos:[['nome','Cliente'],['telefone','Telefone'],['empresa','Empresa'],['cidade','Cidade'],['servico','Serviço / carga'],['origem','Origem','sel','origem'],
     ['status','Status','sel','pedido_status'],['data_servico','Data do serviço','date'],['valor_orcado','Valor orçado (R$)','num'],['valor_fechado','Valor fechado (R$)','num'],
     ['motivo_perda','Motivo se perdido','txt',null,1],['mensagem','Mensagem recebida','area',null,1],['observacoes','Observações','area',null,1]],
-  contas:[['nome','Empresa','txt',null,1],['tipo','Tipo','sel','tipo_conta'],['segmento','Segmento'],['cidade','Cidade'],['telefone','Telefone'],['site','Site'],['endereco','Endereço','txt',null,1],
+  contas:[['nome','Empresa','txt',null,1],['tipo','Tipo','sel','tipo_conta'],['segmento','Segmento'],['cidade','Cidade'],['telefone','Telefone (geral)'],['site','Site'],['endereco','Endereço','txt',null,1],
+    ['decisor_nome','Decisor: nome'],['decisor_cargo','Decisor: cargo'],['decisor_telefone','Decisor: telefone direto'],
     ['prioridade','Prioridade','sel','prioridade'],['status','Status','sel','conta_status'],['proximo_passo','Próximo passo','txt',null,1],['proximo_passo_em','Data do próximo passo','date'],
     ['por_que_precisa','Por que precisa de munck','area',null,1],['como_abordar','Como abordar','area',null,1],['observacoes','Observações','area',null,1]],
   licitacoes:[['orgao','Órgão','txt',null,1],['cidade','Cidade'],['processo','Processo'],['objeto','Objeto','area',null,1],['valor_texto','Valor'],['abertura','Abertura','date'],
@@ -141,6 +236,8 @@ const F = {
   modelos_mensagem:[['nome','Nome','txt',null,1],['etapa','Etapa (1 a 5)','num'],['canal','Canal','sel','canal'],['segmento','Segmento (vazio = todos)','txt',null,1],
     ['texto','Texto (use {empresa}, {cidade}, {motivo})','area',null,1],['ativo','Ativo?','bool']],
   players:[['nome','Empresa','txt',null,1],['cidade','Base'],['telefone','Telefone'],['instagram','Instagram'],['site','Site'],['onde_aparece','Onde aparece','txt',null,1],['observacoes','Observações','area',null,1],['ativo','Ativo no índice?','bool']],
+  tarefas:[['titulo','Tarefa','txt',null,1],['grupo','Grupo'],['responsavel','Responsável'],['status','Status','sel','tarefa_status'],['prazo','Prazo','date'],['ordem','Ordem','num'],
+    ['depende_de','O que trava (vazio = nada)','txt',null,1],['descricao','Detalhes','area',null,1]],
   notas:[['categoria','Categoria'],['ordem','Ordem','num'],['titulo','Título','txt',null,1],['conteudo','Conteúdo','area',null,1]],
   agenda:[['inicio','Início','dtl'],['fim','Fim','dtl'],['cidade','Cidade'],['equipamento','Equipamento','sel','equip'],['endereco','Endereço','txt',null,1],['observacoes','Observações','area',null,1]],
   avaliacoes:[['cliente','Cliente'],['telefone','Telefone'],['cidade','Cidade'],['servico','Serviço'],['pedido_em','Pedido em','date'],['lembrete_em','Lembrete em','date'],
@@ -165,13 +262,15 @@ function ler(form,tab){
 }
 
 /* ---------- Gaveta de edição ---------- */
-function gaveta(tab,reg,titulo,depois,extraHtml=''){
+// o: {topo: html antes do formulário, recolhido: formulário dentro de "Editar dados", semApagar}
+function gaveta(tab,reg,titulo,depois,extraHtml='',o={}){
   fecha();
   const sh=document.createElement('div'); sh.className='shade'; sh.onclick=fecha;
   const d=document.createElement('div'); d.className='drawer';
-  d.innerHTML=`<h2>${esc(titulo)}</h2><form class="grid" id="fEd">${F[tab].map(f=>campo(f,reg[f[0]])).join('')}</form>${extraHtml}`;
+  const form=`<form class="grid" id="fEd">${F[tab].map(f=>campo(f,reg[f[0]])).join('')}</form>`;
+  d.innerHTML=`<h2>${esc(titulo)}</h2>${o.topo||''}${o.recolhido?`<details class="ed"><summary>Editar dados</summary>${form}</details>`:form}${extraHtml}`;
   const a=document.createElement('div'); a.className='actions';
-  a.innerHTML=`<button class="btn" id="bSalva">Salvar</button><button class="btn sec" id="bFecha">Fechar</button>${reg.id?'<button class="btn del" id="bApaga" style="margin-left:auto">Apagar</button>':''}`;
+  a.innerHTML=`<button class="btn" id="bSalva">Salvar</button><button class="btn sec" id="bFecha">Fechar</button>${reg.id&&!o.semApagar?'<button class="btn del" id="bApaga" style="margin-left:auto">Apagar</button>':''}`;
   document.body.append(sh,d,a);
   $('#bFecha').onclick=fecha;
   $('#bSalva').onclick=async()=>{
@@ -180,17 +279,17 @@ function gaveta(tab,reg,titulo,depois,extraHtml=''){
     const {error}=await q; if(error) return toast('Erro: '+error.message);
     toast('Salvo'); fecha(); depois&&depois();
   };
-  if(reg.id) $('#bApaga').onclick=async()=>{ if(!confirm('Apagar este registro?')) return; const {error}=await sb.from(tab).delete().eq('id',reg.id); if(error) return toast('Erro: '+error.message); toast('Apagado'); fecha(); depois&&depois(); };
+  if(reg.id&&!o.semApagar) $('#bApaga').onclick=async()=>{ if(!confirm('Apagar este registro?')) return; const {error}=await sb.from(tab).delete().eq('id',reg.id); if(error) return toast('Erro: '+error.message); toast('Apagado'); fecha(); depois&&depois(); };
   return d;
 }
 function fecha(){ document.querySelectorAll('.shade,.drawer,.actions').forEach(e=>e.remove()); }
 
 /* ---------- Abas ---------- */
-const ABAS = [['resumo','Resumo'],['fila','Fila de hoje'],['pedidos','Pedidos'],['contas','Contas'],['concorrencia','Concorrência'],['licitacoes','Licitações'],['agenda','Agenda'],['avaliacoes','Avaliações'],['ranking','Ranking'],['inteligencia','Inteligência'],['modelos','Modelos']];
+const ABAS = [['resumo','Resumo'],['backlog','Backlog'],['fila','Fila de hoje'],['pedidos','Pedidos'],['contas','Contas'],['concorrencia','Concorrência'],['licitacoes','Licitações'],['agenda','Agenda'],['avaliacoes','Avaliações'],['ranking','Ranking'],['inteligencia','Inteligência'],['modelos','Modelos']];
 let aba = (location.hash.slice(1) || 'resumo');
 function tabs(){ $('#tabs').innerHTML = ABAS.map(([k,l])=>`<button data-k="${k}" class="${k===aba?'on':''}">${l}</button>`).join(''); }
 $('#tabs').onclick = e => { const b=e.target.closest('button'); if(!b) return; aba=b.dataset.k; location.hash=aba; render(); };
-function render(){ fecha(); $('#view').onclick=null; tabs(); ({resumo,fila,pedidos,contas,concorrencia,agenda,avaliacoes,licitacoes,ranking,inteligencia,modelos}[aba]||resumo)(); }
+function render(){ fecha(); $('#view').onclick=null; tabs(); ({resumo,backlog,fila,pedidos,contas,concorrencia,agenda,avaliacoes,licitacoes,ranking,inteligencia,modelos}[aba]||resumo)(); }
 
 /* Resumo */
 async function resumo(){
@@ -206,8 +305,13 @@ async function resumo(){
     sb.from('ranking_semanal').select('*').eq('busca','caminhão munck em Varginha MG').order('data',{ascending:false}).limit(1),
     sb.from('licitacoes').select('orgao,proxima_janela,status,acao').in('status',['monitorar','preparar']).order('proxima_janela',{nullsFirst:false}).limit(5)
   ]);
-  const [rel,fv]=await Promise.all([sb.from('v_relevancia').select('nome,indice,eh_rossignoli').order('indice',{ascending:false}),
-    sb.from('contas').select('id',{count:'exact',head:true}).in('status',['a_contatar','contatado','proposta']).lte('proximo_passo_em',hoje())]);
+  const ini0=new Date(); ini0.setHours(0,0,0,0);
+  const [rel,fv,at,pr]=await Promise.all([sb.from('v_relevancia').select('nome,indice,eh_rossignoli').order('indice',{ascending:false}),
+    sb.from('contas').select('id',{count:'exact',head:true}).in('status',['a_contatar','contatado','proposta']).lte('proximo_passo_em',hoje()),
+    sb.from('atividades').select('resultado').gte('feito_em',ini0.toISOString()),
+    sb.from('pedidos').select('criado_em,respondido_em').gte('criado_em',mes).not('respondido_em','is',null)]);
+  const AT=at.data||[], conversas=AT.filter(x=>['interessado','proposta','cliente','retorno'].includes(x.resultado)).length;
+  const TR=(pr.data||[]).map(p=>(new Date(p.respondido_em)-new Date(p.criado_em))/6e4).sort((a,b)=>a-b), medTR=TR.length?TR[Math.floor(TR.length/2)]:null;
   const RL=rel.data||[], posR=RL.findIndex(x=>x.eh_rossignoli)+1, eu=RL.find(x=>x.eh_rossignoli);
   const P=pm.data||[], fech=P.filter(p=>p.status==='fechado'), fat=fech.reduce((s,p)=>s+Number(p.valor_fechado||0),0);
   const C=cs.data||[], cnt=s=>C.filter(c=>c.status===s).length;
@@ -223,6 +327,8 @@ async function resumo(){
     <div class="kpi"><b>${r?(r.posicao?r.posicao+'º':'—'):'—'}</b><small>no Maps em Varginha${r?' · '+dt(r.data):''}</small></div>
     <div class="kpi"><b>${C.length-cnt('a_contatar')}/${C.length}</b><small>contas já contatadas</small></div>
     <div class="kpi"><b>${fv.count||0}</b><small>retornos vencidos na fila</small></div>
+    <div class="kpi"><b>${AT.length}</b><small>contatos hoje (equipe) · ${conversas} viraram conversa</small></div>
+    <div class="kpi"><b>${medTR==null?'—':medTR<60?Math.round(medTR)+' min':Math.round(medTR/60)+' h'}</b><small>tempo típico até responder pedido (mês) · meta 5 min</small></div>
     <div class="kpi"><b>${eu?eu.indice:'—'}</b><small>índice de relevância · ${posR||'—'}º de ${RL.length}</small></div>
   </div>
   <div class="card"><h3>Pedidos por origem no mês</h3>${O.length?`<div class="bars">${O.map(o=>`<div class="brow"><span>${esc(lab('origem',o.origem))}</span><i style="width:${o.pedidos/maxO*100}%"></i><span class="n">${o.pedidos}</span></div>`).join('')}</div>`:'<p class="mute">Nenhum pedido ainda neste mês.</p>'}</div>
@@ -240,50 +346,88 @@ async function pedidos(){
     let q=sb.from('pedidos').select('*').order('criado_em',{ascending:false}).limit(300);
     const st=$('#fSt').value; if(st) q=q.eq('status',st);
     const {data,error}=await q; if(error) return toast(error.message);
-    $('#lista').innerHTML=`<div class="count">${data.length} pedido(s)</div><div class="tw"><table><thead><tr><th>Data</th><th>Cliente</th><th>Cidade</th><th>Serviço</th><th>Origem</th><th>Status</th><th class="n">Valor</th></tr></thead><tbody>${
-      data.map(p=>`<tr data-id="${p.id}"><td>${dth(p.criado_em)}</td><td>${esc(p.nome||p.empresa||'—')}</td><td>${esc(p.cidade)}</td><td>${esc(p.servico||p.carga)}</td><td>${esc(lab('origem',p.origem))}${p.utm_source?`<br><span class="mute small">${esc(p.utm_source)}</span>`:''}</td><td>${pill(p.status,lab('pedido_status',p.status))}</td><td class="n">${brl(p.valor_fechado||p.valor_orcado)}</td></tr>`).join('')
+    const resp=p=>p.status==='novo'?`<span class="late">aguardando há ${idade(p.criado_em)}</span>`:p.respondido_em?`<span class="mute">respondido em ${duracao(p.criado_em,p.respondido_em)}</span>`:'';
+    $('#lista').innerHTML=`<div class="count">${data.length} pedido(s)</div><div class="tw"><table><thead><tr><th>Data</th><th>Cliente</th><th>Cidade</th><th>Serviço</th><th>Origem</th><th>Status</th><th>Resposta</th><th class="n">Valor</th></tr></thead><tbody>${
+      data.map(p=>`<tr data-id="${p.id}"><td>${dth(p.criado_em)}</td><td>${esc(p.nome||p.empresa||'—')}</td><td>${esc(p.cidade)}</td><td>${esc(p.servico||p.carga)}</td><td>${esc(lab('origem',p.origem))}${p.utm_source?`<br><span class="mute small">${esc(p.utm_source)}</span>`:''}</td><td>${pill(p.status,lab('pedido_status',p.status))}</td><td class="small">${resp(p)}</td><td class="n">${brl(p.valor_fechado||p.valor_orcado)}</td></tr>`).join('')
     }</tbody></table></div>`;
-    $('#lista tbody').onclick=e=>{ const tr=e.target.closest('tr'); const p=data.find(x=>x.id===tr.dataset.id); gaveta('pedidos',p,'Pedido de '+dth(p.criado_em),carrega); };
+    $('#lista tbody').onclick=e=>{ const tr=e.target.closest('tr'); const p=data.find(x=>x.id===tr.dataset.id); abrePedido(p,carrega); };
   };
   $('#fSt').onchange=carrega;
   $('#novo').onclick=()=>gaveta('pedidos',{origem:'whatsapp_direto',status:'novo'},'Novo pedido',carrega);
   carrega();
 }
 
+// Pedido: responder no WhatsApp tira do "novo" (o banco grava a hora da 1ª resposta)
+function abrePedido(p,depois){
+  const nome=(p.nome||'').split(' ')[0], serv=p.servico||p.carga||'o serviço';
+  const txt=`Olá${nome?' '+nome:''}! Aqui é da Rossignoli Locações. Recebemos seu pedido sobre ${serv}${p.cidade?' em '+p.cidade:''}. Pode me mandar o peso aproximado, a altura/distância e uma foto do local? Assim já te passo o orçamento.`;
+  const d=gaveta('pedidos',p,'Pedido de '+dth(p.criado_em),depois,'',{topo:`<div class="card">${p.status==='novo'?`<p class="late small" style="margin:0 0 6px">Aguardando resposta há ${idade(p.criado_em)} — quem responde em até 5 min fecha muito mais.</p>`:''}
+    ${p.mensagem?`<p class="small" style="margin:0 0 8px;white-space:pre-line">${esc(p.mensagem)}</p>`:''}
+    ${p.telefone?`<textarea class="in small" rows="4" id="pMsg">${esc(txt)}</textarea><div class="bar" style="margin:8px 0 0">${ehCel(p.telefone)?'<button class="btn" id="pWa">Responder no WhatsApp</button>':''}<a class="btn sec" href="tel:${dig(p.telefone)}" id="pTel">Ligar ${esc(p.telefone)}</a></div>`:'<p class="late small">Pedido sem telefone.</p>'}</div>`});
+  const respondeu=async()=>{ if(p.status!=='novo') return; const {error}=await sb.from('pedidos').update({status:'em_orcamento'}).eq('id',p.id); if(error) return toast(error.message);
+    p.status='em_orcamento'; const s=d.querySelector('[name=status]'); if(s) s.value='em_orcamento'; toast('Marcado como em orçamento'); depois&&depois(); };
+  const w=d.querySelector('#pWa'); if(w) w.onclick=()=>{ window.open('https://wa.me/55'+dig(p.telefone)+'?text='+encodeURIComponent(d.querySelector('#pMsg').value),'_blank'); respondeu(); };
+  const t=d.querySelector('#pTel'); if(t) t.addEventListener('click',respondeu);
+}
+
 /* Contas */
+const VISTAS=[['todas','Todas'],['hoje','Para hoje'],['novas','Novas (7 dias)'],['negociando','Em negociação'],['paradas','Paradas há +7 dias'],['semdec','Sem decisor'],['semtel','Sem telefone'],['minhas','Minhas'],['clientes','Clientes']];
+// a importação inicial (26 e 28/09/2026) não conta como novidade
+const ehNova=c=>!!c.encontrado_em&&c.encontrado_em>=iso(new Date(Date.now()-7*864e5))&&!/prospecção inicial/i.test(c.fonte_lead||'')&&!/28\/09\/2026|26\/09\/2026/.test(c.origem_dado||'');
+const ABERTA=c=>['a_contatar','contatado','proposta'].includes(c.status);
+const naVista=(k,c)=>{ const h=hoje(), d7=iso(new Date(Date.now()-7*864e5));
+  return k==='hoje'?ABERTA(c)&&c.proximo_passo_em&&c.proximo_passo_em<=h
+    :k==='novas'?ehNova(c)
+    :k==='negociando'?c.status==='proposta'||/orçamento/i.test(c.proximo_passo||'')
+    :k==='paradas'?['contatado','proposta'].includes(c.status)&&(!c.ultimo_contato_em||c.ultimo_contato_em.slice(0,10)<d7)
+    :k==='semdec'?ABERTA(c)&&!!c.telefone&&!c.decisor_nome
+    :k==='semtel'?ABERTA(c)&&!c.telefone
+    :k==='minhas'?c.responsavel===EU
+    :k==='clientes'?c.status==='cliente':true; };
 async function contas(){
   const v=$('#view');
-  const {data:all,error}=await sb.from('contas').select('*').order('pontuacao',{ascending:false,nullsFirst:false}).order('nome'); if(error) return toast(error.message);
+  const [{data:all,error}]=await Promise.all([sb.from('contas').select('*').order('pontuacao',{ascending:false,nullsFirst:false}).order('nome'),carregaModelos()]); if(error) return toast(error.message);
   const uniq=k=>[...new Set(all.map(c=>c[k]).filter(Boolean))].sort();
+  let FC={}; try{ FC=JSON.parse(localStorage.getItem('fContas')||'{}'); }catch(e){}
+  let vista=FC.vista||'todas';
   v.innerHTML=`<div class="bar"><h2>Contas</h2>
-    <input class="in" id="q" placeholder="Buscar nome…">
+    <input class="in" id="q" placeholder="Buscar nome, cidade, telefone…">
     <select class="in" id="fSeg"><option value="">Todos os segmentos</option>${uniq('segmento').map(s=>`<option>${esc(s)}</option>`).join('')}</select>
     <select class="in" id="fCid"><option value="">Todas as cidades</option>${uniq('cidade').map(s=>`<option>${esc(s)}</option>`).join('')}</select>
     <select class="in" id="fPri"><option value="">Prioridade</option><option>A</option><option>B</option><option>C</option></select>
     <select class="in" id="fSt"><option value="">Todos os status</option>${OP.conta_status.map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('')}</select>
-    <button class="btn" id="novo">+ Conta</button></div><div id="lista"></div>`;
+    <button class="btn" id="novo">+ Conta</button></div><div class="chips" id="vistas"></div><div id="lista"></div>`;
+  const ids=['q','fSeg','fCid','fPri','fSt'];
+  ids.forEach(k=>{ if(FC[k]!=null) $('#'+k).value=FC[k]; });
   const desenha=()=>{
-    const q=$('#q').value.toLowerCase(), s=$('#fSeg').value, ci=$('#fCid').value, pr=$('#fPri').value, st=$('#fSt').value;
-    const L=all.filter(c=>(!q||c.nome.toLowerCase().includes(q))&&(!s||c.segmento===s)&&(!ci||c.cidade===ci)&&(!pr||c.prioridade===pr)&&(!st||c.status===st));
-    $('#lista').innerHTML=`<div class="count">${L.length} de ${all.length} contas</div><div class="tw"><table><thead><tr><th class="n">Pts</th><th>Empresa</th><th>Segmento</th><th>Cidade</th><th>Telefone</th><th>Prior.</th><th>Status</th><th>Etapa</th><th>Próximo passo</th></tr></thead><tbody>${
-      L.map(c=>`<tr data-id="${c.id}"><td class="n"><b>${c.pontuacao??''}</b></td><td><b>${esc(c.nome)}</b>${c.encontrado_em&&c.encontrado_em>=new Date(Date.now()-8*864e5).toISOString().slice(0,10)&&c.fonte_lead&&!/prospecção inicial/.test(c.fonte_lead)&&c.origem_dado&&!/28\/09\/2026|26\/09\/2026/.test(c.origem_dado)?' <span class="pill p-novo">novo</span>':''}${c.tipo==='parceiro'?' <span class="pill">parceiro</span>':''}</td><td class="small">${esc(c.segmento)}</td><td>${esc(c.cidade)}</td><td class="small">${c.telefone?`<a href="tel:${esc(c.telefone.replace(/\D/g,''))}" onclick="event.stopPropagation()">${esc(c.telefone)}</a>`:''}</td><td>${pill(c.prioridade)}</td><td>${pill(c.status,lab('conta_status',c.status))}</td><td class="n">${c.etapa||0}</td><td class="small">${c.proximo_passo_em?`<span class="${c.proximo_passo_em<hoje()?'late':''}">${dt(c.proximo_passo_em)}</span> `:''}${esc(c.proximo_passo)}</td></tr>`).join('')
+    FC={vista}; ids.forEach(k=>FC[k]=$('#'+k).value); try{ localStorage.setItem('fContas',JSON.stringify(FC)); }catch(e){}
+    const q=$('#q').value.toLowerCase(), qd=dig(q), s=$('#fSeg').value, ci=$('#fCid').value, pr=$('#fPri').value, st=$('#fSt').value;
+    const base=all.filter(c=>(!q||c.nome.toLowerCase().includes(q)||(c.cidade||'').toLowerCase().includes(q)||(qd.length>3&&dig(c.telefone).includes(qd)))&&(!s||c.segmento===s)&&(!ci||c.cidade===ci)&&(!pr||c.prioridade===pr)&&(!st||c.status===st));
+    $('#vistas').innerHTML=VISTAS.map(([k,l])=>`<button class="chip${k===vista?' on':''}" data-v="${k}">${l}<b>${base.filter(c=>naVista(k,c)).length}</b></button>`).join('');
+    const L=base.filter(c=>naVista(vista,c));
+    if(vista==='hoje') L.sort((a,b)=>a.proximo_passo_em.localeCompare(b.proximo_passo_em)||(b.pontuacao||0)-(a.pontuacao||0));
+    $('#lista').innerHTML=`<div class="count">${L.length} de ${all.length} contas</div><div class="tw"><table><thead><tr><th class="n">Pts</th><th>Empresa</th><th>Cidade</th><th>Telefone</th><th>Status</th><th>Próximo passo</th><th>Resp.</th></tr></thead><tbody>${
+      L.map(c=>`<tr data-id="${c.id}"><td class="n"><b>${c.pontuacao??''}</b></td><td><b>${esc(c.nome)}</b> ${pill(c.prioridade)}${ehNova(c)?' <span class="pill p-novo">novo</span>':''}${c.tipo==='parceiro'?' <span class="pill">parceiro</span>':''}<br><span class="mute small">${esc(c.segmento)}${c.decisor_nome?` · decisor: ${esc(c.decisor_nome)}`:''}</span></td><td>${esc(c.cidade)}</td><td class="small">${c.telefone?`<a href="tel:${dig(c.telefone)}" onclick="event.stopPropagation()">${esc(c.telefone)}</a>`:'<span class="late">pesquisar</span>'}</td><td>${pill(c.status,lab('conta_status',c.status))}${c.etapa?`<br><span class="mute small">etapa ${c.etapa}</span>`:''}</td><td class="small">${c.proximo_passo_em?`<span class="${c.proximo_passo_em<hoje()?'late':''}">${dt(c.proximo_passo_em)}</span> `:''}${esc(c.proximo_passo)}</td><td class="small mute">${esc((c.responsavel||'').split('@')[0])}</td></tr>`).join('')||'<tr><td colspan="7" class="mute">Nada nesta vista.</td></tr>'
     }</tbody></table></div>`;
-    $('#lista tbody').onclick=e=>{ const tr=e.target.closest('tr'); abreConta(all.find(x=>x.id===tr.dataset.id)); };
+    $('#lista tbody').onclick=e=>{ const tr=e.target.closest('tr[data-id]'); if(tr) abreConta(all.find(x=>x.id===tr.dataset.id)); };
   };
+  $('#vistas').onclick=e=>{ const b=e.target.closest('[data-v]'); if(!b) return; vista=b.dataset.v; desenha(); };
   const recarrega=()=>contas();
   async function abreConta(c){
-    const d=gaveta('contas',c,c.nome,recarrega,`<div class="hist"><h3>Histórico de contatos</h3>
-      <form class="grid" id="fAt" style="margin:8px 0"><select class="in" name="tipo">${OP.atividade.map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('')}</select><input class="in" name="resumo" placeholder="O que foi conversado" required><button class="btn sec full" type="submit">Registrar contato</button></form><ul id="lAt"><li class="mute">Carregando…</li></ul></div>`);
+    const topo=`<p class="small mute" style="margin:-4px 0 10px">${esc(c.segmento||'')} · ${esc(c.cidade||'')} · ${pill(c.status,lab('conta_status',c.status))}${c.proximo_passo?` · próximo: <b>${esc(c.proximo_passo)}</b> ${dt(c.proximo_passo_em)}`:''}</p>
+      ${c.por_que_precisa||c.como_abordar?`<div class="card small"><b>Por que precisa:</b> ${esc(c.por_que_precisa||'—')}<br><b>Como abordar:</b> ${esc(c.como_abordar||'—')}</div>`:''}
+      <div class="card">${blocoContato(c)}</div>
+      <div class="hist"><h3>Histórico</h3><ul id="lAt"><li class="mute">Carregando…</li></ul></div>`;
+    const d=gaveta('contas',c,c.nome,recarrega,'',{topo,recolhido:true,semApagar:true});
     const lista=async()=>{ const {data}=await sb.from('atividades').select('*').eq('conta_id',c.id).order('feito_em',{ascending:false});
-      $('#lAt').innerHTML=(data||[]).length?data.map(a=>`<li><b>${dth(a.feito_em)}</b> · ${esc(lab('atividade',a.tipo))} · ${esc(a.resumo)} <span class="mute small">(${esc((a.feito_por||'').split('@')[0])})</span></li>`).join(''):'<li class="mute">Nenhum contato registrado.</li>'; };
-    $('#fAt').onsubmit=async e=>{ e.preventDefault(); const f=e.target;
-      const {error}=await sb.from('atividades').insert({conta_id:c.id,tipo:f.tipo.value,resumo:f.resumo.value}); if(error) return toast(error.message);
-      const {data:nc}=await sb.from('contas').select('status,proximo_passo,proximo_passo_em').eq('id',c.id).single();
+      $('#lAt').innerHTML=(data||[]).length?data.map(a=>`<li><b>${dth(a.feito_em)}</b> · ${esc(lab('atividade',a.tipo))}${a.resultado?' · '+esc(RES[a.resultado]||a.resultado):''} · ${esc(a.resumo)} <span class="mute small">(${esc((a.feito_por||'').split('@')[0])})</span></li>`).join(''):'<li class="mute">Nenhum contato registrado.</li>'; };
+    ligaContato(d.querySelector('[data-ctt]').parentNode,c,async()=>{
+      const {data:nc}=await sb.from('contas').select('*').eq('id',c.id).single();
       if(nc){ Object.assign(c,nc); ['status','proximo_passo','proximo_passo_em'].forEach(k=>{ const el=d.querySelector(`[name=${k}]`); if(el) el.value=nc[k]||''; }); }
-      f.resumo.value=''; lista(); toast('Contato registrado · próximo passo agendado'); };
+      lista(); desenha(); });
     lista();
   }
-  ['q','fSeg','fCid','fPri','fSt'].forEach(i=>$('#'+i).addEventListener('input',desenha));
+  ids.forEach(i=>$('#'+i).addEventListener('input',desenha));
   $('#novo').onclick=()=>gaveta('contas',{tipo:'empresa',status:'a_contatar'},'Nova conta',recarrega);
   desenha();
 }
@@ -307,6 +451,26 @@ const agenda=()=>simples('agenda','Agenda do caminhão','inicio',true,
 const avaliacoes=()=>simples('avaliacoes','Pedidos de avaliação','pedido_em',false,
   [['Pedido em',r=>dt(r.pedido_em)],['Cliente',r=>esc(r.cliente)],['Cidade',r=>esc(r.cidade)],['Serviço',r=>esc(r.servico)],['Lembrete',r=>`<span class="${!r.avaliou&&r.lembrete_em&&r.lembrete_em<=hoje()?'late':''}">${dt(r.lembrete_em)}</span>`],['Avaliou',r=>r.avaliou?pill('fechado','sim'):pill('novo','não')],['Respondida',r=>r.respondida?'sim':'não']],
   ()=>({pedido_em:hoje(),lembrete_em:new Date(Date.now()+3*864e5).toISOString().slice(0,10),avaliou:false,respondida:false}), r=>r.cliente);
+async function backlog(){
+  const v=$('#view');
+  const {data,error}=await sb.from('tarefas').select('*').order('ordem').order('prazo',{nullsFirst:false}); if(error) return toast(error.message);
+  const resp=[...new Set(data.map(r=>r.responsavel).filter(Boolean))].sort();
+  let F={}; try{ F=JSON.parse(localStorage.getItem('fBack')||'{}'); }catch(e){}
+  const feitas=data.filter(r=>r.status==='feita').length, atras=data.filter(r=>r.status!=='feita'&&r.prazo&&r.prazo<hoje()).length, bloq=data.filter(r=>r.status==='bloqueada').length;
+  v.innerHTML=`<div class="bar"><h2>Backlog · Plano Top 1</h2><select class="in" id="bSit"><option value="abertas">Em aberto</option><option value="todas">Todas</option><option value="bloqueada">Só bloqueadas</option><option value="atrasadas">Só atrasadas</option><option value="feita">Só feitas</option></select><select class="in" id="bResp"><option value="">Todos os responsáveis</option>${resp.map(r=>`<option>${esc(r)}</option>`).join('')}</select><button class="btn" id="novo">+ Tarefa</button></div>
+  <p class="small mute" style="margin-bottom:12px">${feitas} de ${data.length} feitas · <span class="${atras?'late':''}">${atras} atrasada(s)</span> · ${bloq} bloqueada(s). Plano completo: <a href="https://claude.ai/artifact/98ZTKYDhc13cuEayoKRAku" target="_blank" rel="noopener">abrir</a>.</p><div id="lista"></div>`;
+  if(F.sit) $('#bSit').value=F.sit; if(F.resp&&resp.includes(F.resp)) $('#bResp').value=F.resp;
+  const desenha=()=>{ const sit=$('#bSit').value, rp=$('#bResp').value; try{ localStorage.setItem('fBack',JSON.stringify({sit,resp:rp})); }catch(e){}
+    const L=data.filter(r=>(sit==='todas'||(sit==='abertas'?r.status!=='feita':sit==='atrasadas'?r.status!=='feita'&&r.prazo&&r.prazo<hoje():r.status===sit))&&(!rp||r.responsavel===rp));
+    let g=null; const linhas=L.map(r=>{ const cab=r.grupo!==g?`<tr><td colspan="5" class="grp">${esc(r.grupo||'Sem grupo')}</td></tr>`:''; g=r.grupo;
+      const late=r.status!=='feita'&&r.prazo&&r.prazo<hoje();
+      return cab+`<tr data-id="${r.id}"><td><b>${esc(r.titulo)}</b>${r.descricao?`<br><span class="small mute">${esc(r.descricao.slice(0,160))}</span>`:''}</td><td>${esc(r.responsavel||'')}</td><td>${pill(r.status,lab('tarefa_status',r.status))}</td><td class="small"><span class="${late?'late':''}">${dt(r.prazo)}</span></td><td class="small">${esc(r.depende_de||'')}</td></tr>`; }).join('');
+    $('#lista').innerHTML=`<div class="count">${L.length} tarefa(s)</div><div class="tw"><table><thead><tr><th>Tarefa</th><th>Quem</th><th>Status</th><th>Prazo</th><th>O que trava</th></tr></thead><tbody>${linhas||'<tr><td colspan="5" class="mute">Nada com esse filtro.</td></tr>'}</tbody></table></div>`;
+    $('#lista tbody').onclick=e=>{ const tr=e.target.closest('tr[data-id]'); if(!tr) return; const r=data.find(x=>x.id===tr.dataset.id); gaveta('tarefas',r,r.titulo,backlog); };
+  };
+  $('#bSit').onchange=desenha; $('#bResp').onchange=desenha;
+  $('#novo').onclick=()=>gaveta('tarefas',{status:'a_fazer',grupo:'Outros',ordem:100},'Nova tarefa',backlog); desenha();
+}
 async function licitacoes(){
   const v=$('#view');
   const {data,error}=await sb.from('licitacoes').select('*'); if(error) return toast(error.message);
@@ -368,41 +532,77 @@ const ranking=()=>simples('ranking_semanal','Ranking semanal no Google Maps','da
   ()=>({data:hoje(),busca:'caminhão munck em Varginha MG'}), r=>'Ranking '+dt(r.data));
 
 /* Fila de contato do dia (cadência semiautomática) */
-function preenche(txt,c){ const motivo=(c.por_que_precisa||'serviços de içamento').split(/[:;.]/)[0].toLowerCase();
-  return txt.replace(/\{empresa\}/g,c.nome.split(/ [-–|(]/)[0]).replace(/\{cidade\}/g,c.cidade&&!/Região|\//.test(c.cidade)?c.cidade:'Varginha e região').replace(/\{motivo\}/g,motivo); }
+const META_DIA=15;
 async function fila(){
   const v=$('#view'); v.innerHTML='<p class="mute">Montando a fila…</p>';
-  const h=hoje();
-  const [a,b,m]=await Promise.all([
-    sb.from('v_contas_canal').select('*').in('status',['a_contatar','contatado','proposta']).not('proximo_passo_em','is',null).lte('proximo_passo_em',h).order('proximo_passo_em').limit(15),
-    sb.from('v_contas_canal').select('*').eq('status','a_contatar').eq('etapa',0).is('proximo_passo_em',null).order('pontuacao',{ascending:false,nullsFirst:false}).limit(15),
-    sb.from('modelos_mensagem').select('*').eq('ativo',true)
+  const h=hoje(), ini0=new Date(); ini0.setHours(0,0,0,0);
+  let minha=false; try{ minha=localStorage.getItem('filaMinha')==='1'; }catch(e){}
+  const dono=q=>minha?q.or(`responsavel.is.null,responsavel.eq.${EU}`):q;
+  // busca um lote maior e filtra aqui, para os filtros responderem na hora
+  const [a,b,p,feitos,semTel]=await Promise.all([
+    dono(sb.from('v_contas_canal').select('*').in('status',['a_contatar','contatado','proposta']).not('proximo_passo_em','is',null).lte('proximo_passo_em',h)).order('proximo_passo_em').order('pontuacao',{ascending:false}).limit(300),
+    dono(sb.from('v_contas_canal').select('*').eq('status','a_contatar').eq('etapa',0).is('proximo_passo_em',null).neq('canal_sugerido','pesquisar_telefone')).order('pontuacao',{ascending:false,nullsFirst:false}).limit(500),
+    sb.from('pedidos').select('*').eq('status','novo').order('criado_em'),
+    sb.from('atividades').select('conta_id').gte('feito_em',ini0.toISOString()).eq('feito_por',EU),
+    sb.from('contas').select('id',{count:'exact',head:true}).eq('status','a_contatar').or('telefone.is.null,telefone.eq.'),
+    carregaModelos()
   ]);
-  const L=[...(a.data||[]),...(b.data||[])].slice(0,15), M=m.data||[];
-  const modelo=c=>{ const et=Math.min((c.etapa||0)+1,5); const can=c.canal_sugerido==='ligacao'&&et<3?['whatsapp','ligacao']:null;
-    return M.find(x=>x.etapa===et&&x.segmento===c.segmento)||M.find(x=>x.etapa===et&&!x.segmento)||M.find(x=>!x.segmento); };
-  v.innerHTML=`<div class="bar"><h2>Fila de hoje</h2><span class="mute small">Até 15 contatos por dia: primeiro os retornos vencidos, depois as contas novas de maior pontuação.</span></div>
-  ${L.length?'':'<p class="mute">Fila vazia. Nenhum retorno vencido e nenhuma conta nova pendente.</p>'}
-  ${L.map((c,i)=>{ const md=modelo(c); const txt=md?preenche(md.texto,c):''; const cel=c.canal_sugerido==='whatsapp';
-    return `<div class="card" data-i="${i}"><div class="bar" style="margin-bottom:6px"><h3 style="margin:0">${esc(c.nome)}</h3>${pill(c.prioridade)} <span class="pill">${c.pontuacao??''} pts</span> <span class="mute small">${esc(c.segmento||'')} · ${esc(c.cidade||'')} · etapa ${c.etapa||0}${c.proximo_passo?` · ${esc(c.proximo_passo)}`:''}</span></div>
-      <p class="small mute" style="margin:0 0 6px">${esc(c.por_que_precisa||'')}</p>
-      ${md?`<textarea class="in small" rows="4" data-t="${i}">${esc(txt)}</textarea>`:''}
-      <div class="bar" style="margin:8px 0 0">
-        ${cel?`<button class="btn" data-a="wa" data-i="${i}">Enviar WhatsApp</button>`:''}
-        ${c.telefone?`<a class="btn sec" href="tel:${esc(c.fone_digitos)}" data-a="tel" data-i="${i}">Ligar ${esc(c.telefone)}</a>`:'<span class="late small">Sem telefone: pesquisar</span>'}
-        <button class="btn sec" data-a="feito" data-i="${i}">Registrar contato</button>
-        <button class="btn sec" data-a="pula" data-i="${i}">Amanhã</button>
-        <button class="btn del" data-a="nao" data-i="${i}">Sem interesse</button>
-      </div></div>`; }).join('')}`;
-  v.onclick=async e=>{
-    const b=e.target.closest('[data-a]'); if(!b) return; const c=L[b.dataset.i], ta=v.querySelector(`[data-t="${b.dataset.i}"]`), md=modelo(c);
-    const reg=async(tipo,resumo)=>{ const {error}=await sb.from('atividades').insert({conta_id:c.id,tipo,resumo}); if(error) return toast(error.message); toast('Registrado · próximo passo agendado'); b.closest('.card').style.opacity=.4; };
-    if(b.dataset.a==='wa'){ window.open('https://wa.me/55'+c.fone_digitos+'?text='+encodeURIComponent(ta?ta.value:''),'_blank'); await reg('whatsapp',(md?md.nome:'Mensagem')+' (etapa '+((c.etapa||0)+1)+')'); }
-    if(b.dataset.a==='tel'){ setTimeout(async()=>{ const r=prompt('Como foi a ligação? (deixe vazio se não atendeu)'); await reg('ligacao',r||'Ligação sem resposta'); },800); }
-    if(b.dataset.a==='feito'){ const r=prompt('O que foi feito/conversado?'); if(r) await reg('outro',r); }
-    if(b.dataset.a==='pula'){ await sb.from('contas').update({proximo_passo_em:new Date(Date.now()+864e5).toISOString().slice(0,10),proximo_passo:c.proximo_passo||'Primeiro contato'}).eq('id',c.id); b.closest('.card').remove(); }
-    if(b.dataset.a==='nao'){ if(!confirm('Marcar '+c.nome+' como sem interesse?')) return; await sb.from('contas').update({status:'sem_interesse',proximo_passo:null,proximo_passo_em:null}).eq('id',c.id); b.closest('.card').remove(); toast('Marcado'); }
+  const jaHoje=new Set((feitos.data||[]).map(x=>x.conta_id));
+  const retorno=new Set((a.data||[]).map(c=>c.id));
+  // retornos vencidos primeiro; depois contas novas de maior pontuação; some quem já foi trabalhado hoje
+  const POOL=[...(a.data||[]),...(b.data||[])].filter((c,i,arr)=>!jaHoje.has(c.id)&&arr.findIndex(x=>x.id===c.id)===i);
+  const P=p.data||[];
+  const uniq=k=>[...new Set(POOL.map(c=>c[k]).filter(Boolean))].sort((x,y)=>x.localeCompare(y));
+  const sel=(id,rot,L)=>`<select class="in" id="${id}"><option value="">${rot}</option>${L.map(([k,t])=>`<option value="${esc(k)}">${esc(t)}</option>`).join('')}</select>`;
+  v.innerHTML=`<div class="bar"><h2>Fila de hoje</h2>
+      <div class="prog"><i id="progI"></i></div><span class="small" id="progT"></span>
+      <label class="small" style="display:flex;gap:6px;align-items:center;margin-left:auto"><input type="checkbox" id="minha" ${minha?'checked':''}> Só as minhas e sem dono</label></div>
+    ${horaComercial()?'':'<div class="aviso">Fora do horário comercial (seg a sex, 8h–18h). Mensagem de prospecção agora costuma ser ignorada: prepare a fila e envie a partir das 8h.</div>'}
+    ${P.length?`<h3 style="margin:6px 0 8px">Pedidos esperando resposta</h3>${P.map((x,i)=>`<div class="card pedido" data-p="${i}"><div class="bar" style="margin-bottom:4px"><h3 style="margin:0">${esc(x.nome||x.empresa||'Sem nome')}</h3><span class="late small">há ${idade(x.criado_em)}</span><span class="mute small">${esc(x.cidade||'')} · ${esc(x.servico||x.carga||'')} · ${esc(lab('origem',x.origem))}</span></div>
+      ${x.mensagem?`<p class="small" style="margin:0 0 6px">${esc(x.mensagem.slice(0,220))}</p>`:''}<button class="btn" data-pa="${i}">Responder agora</button></div>`).join('')}`:''}
+    <h3 style="margin:14px 0 8px">Prospecção</h3>
+    <div class="chips" id="fTipo"></div>
+    <div class="bar" style="gap:6px">
+      <input class="in" id="fq" placeholder="Buscar empresa…" style="flex:1;min-width:160px">
+      ${sel('fSeg','Todos os segmentos',uniq('segmento').map(x=>[x,x]))}
+      ${sel('fCid','Todas as cidades',uniq('cidade').map(x=>[x,x]))}
+      ${sel('fCanal','WhatsApp ou ligação',[['whatsapp','Só WhatsApp (celular)'],['ligacao','Só ligação (fixo)']])}
+      ${sel('fPri','Prioridade',[['A','A'],['B','B'],['C','C']])}
+      <button class="btn sec" id="fLimpa">Limpar</button>
+    </div>
+    <p class="small mute" style="margin:0 0 10px">Primeiro os retornos vencidos, depois as contas novas de maior pontuação. Mensagem no WhatsApp é registrada sozinha; depois de ligar, clique no resultado.${semTel.count?` <a href="#contas" id="vSemTel">${semTel.count} contas sem telefone</a> ficam fora da fila até alguém achar o número.`:''}</p>
+    <div id="filaL"></div>`;
+  const TIPOS=[['','Tudo'],['retornos','Retornos vencidos'],['novas','Primeiro contato'],['decisor','Falar com decisor'],['semdec','Sem decisor ainda']];
+  const noTipo=(t,c)=>t==='retornos'?retorno.has(c.id):t==='novas'?!retorno.has(c.id):t==='decisor'?!!c.decisor_nome:t==='semdec'?!c.decisor_nome:true;
+  const ids=['fq','fSeg','fCid','fCanal','fPri'];
+  let FF={}; try{ FF=JSON.parse(localStorage.getItem('fFila')||'{}'); }catch(e){}
+  let tipo=FF.tipo||''; ids.forEach(k=>{ if(FF[k]!=null) $('#'+k).value=FF[k]; });
+  const prog=()=>{ $('#progI').style.width=Math.min(100,jaHoje.size/META_DIA*100)+'%'; $('#progT').innerHTML=`<b>${jaHoje.size}</b> de ${META_DIA} contas trabalhadas hoje`; };
+  const desenha=()=>{
+    const g=k=>$('#'+k).value; FF={tipo}; ids.forEach(k=>FF[k]=g(k)); try{ localStorage.setItem('fFila',JSON.stringify(FF)); }catch(e){}
+    const q=g('fq').toLowerCase();
+    const base=POOL.filter(c=>(!q||c.nome.toLowerCase().includes(q))&&(!g('fSeg')||c.segmento===g('fSeg'))&&(!g('fCid')||c.cidade===g('fCid'))&&(!g('fCanal')||c.canal_sugerido===g('fCanal'))&&(!g('fPri')||c.prioridade===g('fPri')));
+    $('#fTipo').innerHTML=TIPOS.map(([k,t])=>`<button class="chip${k===tipo?' on':''}" data-t="${k}">${t}<b>${base.filter(c=>noTipo(k,c)).length}</b></button>`).join('');
+    const todos=base.filter(c=>noTipo(tipo,c)), falta=Math.max(0,META_DIA-jaHoje.size), L=todos.slice(0,falta||5);
+    const filtrado=tipo||ids.some(k=>g(k));
+    $('#filaL').innerHTML=`<div class="count">${L.length?`Mostrando ${L.length} de ${todos.length}${filtrado?' com esses filtros':''}${falta?'':' · meta do dia batida, estes são extras'}`:''}</div>
+    ${L.length?'':`<p class="mute">${filtrado?'Nada com esses filtros.':'Fila vazia por hoje.'}</p>`}
+    ${L.map((c,i)=>`<div class="card" data-i="${i}"><div class="bar" style="margin-bottom:6px"><h3 style="margin:0">${esc(c.nome)}</h3>${pill(c.prioridade)} <span class="pill">${c.pontuacao??''} pts</span> <span class="mute small">${esc(c.segmento||'')} · ${esc(c.cidade||'')} · etapa ${c.etapa||0}${c.proximo_passo?` · <span class="${c.proximo_passo_em&&c.proximo_passo_em<h?'late':''}">${esc(c.proximo_passo)}</span>`:''}</span>
+        <button class="btn sec" data-adia="${i}" style="margin-left:auto">Adiar 1 dia útil</button></div>
+      <p class="small mute" style="margin:0 0 6px">${esc(c.por_que_precisa||'')}${c.como_abordar?` <b>Abordagem:</b> ${esc(c.como_abordar)}`:''}</p>
+      ${blocoContato(c)}</div>`).join('')}`;
+    $('#filaL').querySelectorAll('.card[data-i]').forEach(card=>{ const c=L[card.dataset.i];
+      ligaContato(card,c,()=>{ card.classList.add('feito'); jaHoje.add(c.id); prog(); });
+      card.querySelector('[data-adia]').onclick=async()=>{ const {error}=await sb.from('contas').update({proximo_passo_em:diaUtil(1),proximo_passo:c.proximo_passo||'Primeiro contato'}).eq('id',c.id); if(error) return toast(error.message);
+        POOL.splice(POOL.indexOf(c),1); card.remove(); toast('Adiado para '+dt(diaUtil(1))); }; });
   };
+  $('#fTipo').onclick=e=>{ const b=e.target.closest('[data-t]'); if(!b) return; tipo=b.dataset.t; desenha(); };
+  ids.forEach(k=>$('#'+k)[k==='fq'?'oninput':'onchange']=desenha);
+  $('#fLimpa').onclick=()=>{ tipo=''; ids.forEach(k=>$('#'+k).value=''); desenha(); };
+  $('#minha').onchange=e=>{ try{ localStorage.setItem('filaMinha',e.target.checked?'1':'0'); }catch(_){} fila(); };
+  const st=$('#vSemTel'); if(st) st.onclick=()=>{ try{ const f=JSON.parse(localStorage.getItem('fContas')||'{}'); f.vista='semtel'; localStorage.setItem('fContas',JSON.stringify(f)); }catch(e){} };
+  v.querySelectorAll('[data-pa]').forEach(bt=>bt.onclick=()=>abrePedido(P[bt.dataset.pa],fila));
+  prog(); desenha();
 }
 
 /* Concorrência: índice de relevância */
@@ -451,10 +651,15 @@ $('#fLogin').onsubmit=async e=>{
   if(error) $('#lErr').textContent='Usuário ou senha incorretos.';
 };
 $('#sair').onclick=()=>sb.auth.signOut();
+// O Supabase repete o evento de login quando a aba volta ao foco (ex.: depois de abrir o WhatsApp).
+// Só desenha no primeiro login, senão a tela recarrega e perde gaveta aberta, anotações e filtros.
+let iniciado=false;
 sb.auth.onAuthStateChange((_ev,session)=>{
   const on=!!session;
   $('#login').classList.toggle('hide',on); $('#app').classList.toggle('hide',!on);
-  if(on){ $('#who').textContent=session.user.email.split('@')[0]; render(); }
+  if(!on){ iniciado=false; return; }
+  EU=session.user.email; $('#who').textContent=EU.split('@')[0];
+  if(!iniciado){ iniciado=true; render(); }
 });
 </script>
 </body>
