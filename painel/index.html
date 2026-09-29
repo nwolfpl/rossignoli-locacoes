@@ -617,7 +617,7 @@ async function fila(){
   const retorno=new Set((a.data||[]).map(c=>c.id));
   // retornos vencidos primeiro; depois contas novas de maior pontuação; some quem já foi trabalhado hoje
   // fora da fila: quem já foi trabalhado hoje e empresa fechada (Receita ou Maps)
-  const POOL=[...(a.data||[]),...(b.data||[])].filter((c,i,arr)=>!jaHoje.has(c.id)&&arr.findIndex(x=>x.id===c.id)===i&&c.contato_situacao!=='empresa_fechada'&&!['BAIXADA','INAPTA','NULA'].includes(c.empresa_situacao));
+  const POOL=[...(a.data||[]),...(b.data||[])].filter((c,i,arr)=>!jaHoje.has(c.id)&&arr.findIndex(x=>x.id===c.id)===i&&c.contato_situacao!=='empresa_fechada'&&!['BAIXADA','NULA'].includes(c.empresa_situacao));
   const P=p.data||[];
   const uniq=k=>[...new Set(POOL.map(c=>c[k]).filter(Boolean))].sort((x,y)=>x.localeCompare(y));
   const sel=(id,rot,L)=>`<select class="in" id="${id}"><option value="">${rot}</option>${L.map(([k,t])=>`<option value="${esc(k)}">${esc(t)}</option>`).join('')}</select>`;
