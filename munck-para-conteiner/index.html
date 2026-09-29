@@ -80,5 +80,17 @@
   <div><a href="https://maps.google.com/?cid=12872586770593568172" target="_blank" rel="noopener">Google Maps</a><br><a href="https://www.instagram.com/rossignolilocacoes/" target="_blank" rel="noopener">Instagram</a><br><a href="https://g.page/r/CaxVn0l3naSyEBM/review" target="_blank" rel="noopener">Avaliar no Google</a></div>
 </div></footer>
 <nav class="dock" aria-label="Contato rápido"><a class="btn btn-line" href="tel:+5535991912616"><svg aria-hidden="true"><use href="#i-tel"/></svg>Ligar</a><a class="btn btn-wa" href="https://wa.me/5535991912616?text=Ol%C3%A1%2C%20Rossignoli%21%20Quero%20um%20or%C3%A7amento%20de%20munck%20para%20cont%C3%AAiner.%20Vou%20mandar%20foto%20do%20local.%20%28pedido%20via%20site%20%C2%B7%20pagina-munck-para-conteiner%29" target="_blank" rel="noopener"><svg aria-hidden="true"><use href="#i-wa"/></svg>Orçamento</a></nav>
+<script>
+// Registra no painel quem clicou para pedir orçamento nesta página (chave pública: só cria pedido).
+document.addEventListener('click',function(e){
+  var a=e.target.closest('a[href*="wa.me/"],a[href^="tel:"]'); if(!a) return;
+  var wa=/wa\.me/.test(a.href);
+  if(window.gtag) gtag('event',wa?'generate_lead':'call_click',{metodo:wa?'whatsapp':'telefone',servico:'Contêiner'});
+  if(!wa) return;
+  var p=new URLSearchParams(location.search), o=(p.get('utm_source')||'').toLowerCase();
+  var d={origem:o==='gbp'?'google_perfil':/instagram/.test(o)?'instagram':'site',utm_source:p.get('utm_source')||'pagina-servico',utm_medium:p.get('utm_medium'),utm_campaign:p.get('utm_campaign'),pagina:location.pathname,servico:'Contêiner',mensagem:'Clicou no WhatsApp da página de serviço (Contêiner). A conversa continua no WhatsApp.'};
+  try{fetch('https://vllghkaymxzlfprcvfmc.supabase.co/rest/v1/pedidos',{method:'POST',keepalive:true,headers:{'apikey':'sb_publishable_HqfLoJbcH5yfYkej7hDeGA_a8_Is3-p','Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(d)});}catch(_){}
+});
+</script>
 </body>
 </html>

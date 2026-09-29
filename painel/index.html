@@ -56,6 +56,12 @@ td.n{text-align:right;font-variant-numeric:tabular-nums}
 .p-fechado,.p-cliente,.p-ganha{background:#DFF0E5;color:var(--ok)}
 .estrela{border:0;background:none;cursor:pointer;font-size:18px;line-height:1;padding:0 4px 0 0;color:#C9C2B8;vertical-align:-1px}.estrela.on{color:#E0A100}
 .pill.tag{background:#E8EEF7;color:#2F4A6D;font-weight:500}.pill.tag i{cursor:pointer;font-style:normal;margin-left:4px;opacity:.6}
+.chipsel{display:flex;flex-wrap:wrap;gap:6px}.chipsel label{border:1px solid var(--line);background:#fff;border-radius:14px;padding:4px 11px;font-size:13px;cursor:pointer}
+.chipsel input{display:none}.chipsel label:has(input:checked){background:var(--ink);border-color:var(--ink);color:#fff}
+.rel h3{margin:0 0 8px}.rel .kpi small i{font-style:normal}.sobe{color:var(--ok)}.desce{color:var(--bad)}
+.alerta{border-left:4px solid var(--bad)}.dica{font-size:12px;color:var(--mute);margin-top:6px}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:800px){.cols2{grid-template-columns:1fr}}
+@media print{header,.noprint,#pedRap{display:none!important}body{background:#fff}.card{break-inside:avoid}}
 .p-descartada{background:#ECE8E1;color:#6B655E}
 .p-ok{background:#DFF0E5;color:var(--ok)}
 .massa{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--ink);color:#fff;border-radius:6px;padding:8px 10px;margin-bottom:8px}
@@ -115,7 +121,7 @@ details.ed{margin-top:16px}details.ed summary{cursor:pointer;font-family:var(--d
 
 <div id="app" class="hide">
   <header>
-    <div class="top"><h1>Rossignoli <span>Painel</span></h1><span class="who" id="who"></span><button id="sair">Sair</button></div>
+    <div class="top"><h1>Rossignoli <span>Painel</span></h1><button class="btn" id="pedRap" style="margin-left:auto;padding:5px 12px" title="Registrar pedido que chegou por WhatsApp, telefone ou indicação">+ Pedido</button><span class="who" id="who" style="margin-left:0"></span><button id="sair">Sair</button></div>
     <nav class="tabs" id="tabs"></nav>
   </header>
   <main id="view"></main>
@@ -146,7 +152,7 @@ const pill = (v,lab) => v ? `<span class="pill p-${esc(v)}">${esc(lab||v.replace
 /* ---------- Opções ---------- */
 const OP = {
   pedido_status:[['novo','Novo'],['em_orcamento','Em orçamento'],['orcado','Orçado'],['fechado','Fechado'],['perdido','Perdido']],
-  origem:[['site','Site'],['google_perfil','Perfil do Google'],['whatsapp_direto','WhatsApp direto'],['instagram','Instagram'],['indicacao','Indicação'],['licitacao','Licitação'],['parceiro','Parceiro'],['olx','OLX'],['outro','Outro']],
+  origem:[['whatsapp_direto','WhatsApp direto'],['telefone','Telefone'],['indicacao','Indicação'],['cliente_antigo','Cliente que voltou'],['google_perfil','Perfil do Google'],['site','Site'],['instagram','Instagram'],['prospeccao','Prospecção (Fila)'],['licitacao','Licitação'],['parceiro','Parceiro'],['olx','OLX'],['outro','Outro']],
   conta_status:[['a_contatar','A contatar'],['contatado','Contatado'],['proposta','Proposta enviada'],['cliente','Cliente'],['sem_interesse','Sem interesse'],['descartada','Descartada']],
   descarte:[['fora_perfil','Fora do perfil (não usa içamento)'],['duplicada','Duplicada'],['fechada','Empresa fechada'],['longe','Fora da região'],['sem_contato','Sem contato depois de várias tentativas'],['outro','Outro motivo']],
   equipe:[],
@@ -239,7 +245,7 @@ function ligaContato(root,c,feito){
 /* ---------- Formulários (campos por tabela) ---------- */
 const F = {
   pedidos:[['nome','Cliente'],['telefone','Telefone'],['empresa','Empresa'],['cidade','Cidade'],['servico','Serviço / carga'],['origem','Origem','sel','origem'],
-    ['status','Status','sel','pedido_status'],['data_servico','Data do serviço','date'],['valor_orcado','Valor orçado (R$)','num'],['valor_fechado','Valor fechado (R$)','num'],
+    ['status','Status','sel','pedido_status'],['responsavel','Responsável','sel','equipe'],['data_servico','Data do serviço','date'],['horas','Horas de serviço','num'],['valor_orcado','Valor orçado (R$)','num'],['valor_fechado','Valor fechado (R$)','num'],
     ['motivo_perda','Motivo se perdido','txt',null,1],['mensagem','Mensagem recebida','area',null,1],['observacoes','Observações','area',null,1]],
   contas:[['nome','Empresa','txt',null,1],['tipo','Tipo','sel','tipo_conta'],['segmento','Segmento'],['cidade','Cidade'],['telefone','Telefone (geral)'],['site','Site'],['endereco','Endereço','txt',null,1],
     ['decisor_nome','Decisor: nome'],['decisor_cargo','Decisor: cargo'],['decisor_telefone','Decisor: telefone direto'],
@@ -303,11 +309,11 @@ function gaveta(tab,reg,titulo,depois,extraHtml='',o={}){
 function fecha(){ document.querySelectorAll('.shade,.drawer,.actions').forEach(e=>e.remove()); }
 
 /* ---------- Abas ---------- */
-const ABAS = [['resumo','Resumo'],['backlog','Backlog'],['fila','Fila de hoje'],['pedidos','Pedidos'],['contas','Contas'],['concorrencia','Concorrência'],['licitacoes','Licitações'],['agenda','Agenda'],['avaliacoes','Avaliações'],['ranking','Ranking'],['inteligencia','Inteligência'],['modelos','Modelos']];
+const ABAS = [['resumo','Resumo'],['relatorios','Relatórios'],['backlog','Backlog'],['fila','Fila de hoje'],['pedidos','Pedidos'],['contas','Contas'],['concorrencia','Concorrência'],['licitacoes','Licitações'],['agenda','Agenda'],['avaliacoes','Avaliações'],['ranking','Ranking'],['inteligencia','Inteligência'],['modelos','Modelos']];
 let aba = (location.hash.slice(1) || 'resumo');
 function tabs(){ $('#tabs').innerHTML = ABAS.map(([k,l])=>`<button data-k="${k}" class="${k===aba?'on':''}">${l}</button>`).join(''); }
 $('#tabs').onclick = e => { const b=e.target.closest('button'); if(!b) return; aba=b.dataset.k; location.hash=aba; render(); };
-function render(){ fecha(); $('#view').onclick=null; tabs(); ({resumo,backlog,fila,pedidos,contas,concorrencia,agenda,avaliacoes,licitacoes,ranking,inteligencia,modelos}[aba]||resumo)(); }
+function render(){ fecha(); $('#view').onclick=null; tabs(); ({resumo,relatorios,backlog,fila,pedidos,contas,concorrencia,agenda,avaliacoes,licitacoes,ranking,inteligencia,modelos}[aba]||resumo)(); }
 
 /* Resumo */
 async function resumo(){
@@ -371,8 +377,65 @@ async function pedidos(){
     $('#lista tbody').onclick=e=>{ const tr=e.target.closest('tr'); const p=data.find(x=>x.id===tr.dataset.id); abrePedido(p,carrega); };
   };
   $('#fSt').onchange=carrega;
-  $('#novo').onclick=()=>gaveta('pedidos',{origem:'whatsapp_direto',status:'novo'},'Novo pedido',carrega);
+  $('#novo').onclick=()=>pedidoRapido(carrega);
   carrega();
+}
+
+// Pedido rápido: quem atende no WhatsApp/telefone registra em segundos; tudo é opcional
+const RESP_PEDIDOS='renan@rossignolilocacoes.com.br';
+const MOTIVOS_PERDA=['Preço','Agenda / prazo','Equipamento não atende','Cliente sumiu','Fechou com outro','Desistiu','Outro'];
+const chipsel=(nome,L,marcado)=>`<div class="chipsel">${L.map(([v,t])=>`<label><input type="radio" name="${nome}" value="${esc(v)}" ${v===marcado?'checked':''}>${esc(t)}</label>`).join('')}</div>`;
+async function pedidoRapido(depois){
+  if(!OP.equipe.length) await carregaEquipe();
+  const d=painel('Registrar pedido',`<p class="small mute" style="margin:-4px 0 12px">Chegou pedido por WhatsApp, telefone ou indicação? Anote o que souber, nada é obrigatório.</p>
+    <form class="grid" id="fPR" onsubmit="return false">
+      <label class="f">Quem pediu (pessoa ou empresa)<input class="in" name="nome"></label>
+      <label class="f">Telefone<input class="in" name="telefone" inputmode="tel"></label>
+      <p class="small full" id="prConta" style="margin:-4px 0 0"></p>
+      <label class="f">Cidade<input class="in" name="cidade"></label>
+      <label class="f">O que precisa<input class="in" name="servico" placeholder="Ex.: subir caixa d'água de 5 mil litros"></label>
+      <div class="f full"><span class="small mute">Por onde chegou</span>${chipsel('origem',OP.origem.filter(o=>!['olx','licitacao','parceiro','site'].includes(o[0])),'whatsapp_direto')}</div>
+      <div class="f full"><span class="small mute">Resposta</span>${chipsel('resp',[['5','Respondi na hora'],['30','Em até 1 hora'],['180','Mais tarde'],['nao','Ainda não respondi']],'5')}</div>
+      <div class="f full"><span class="small mute">Situação</span>${chipsel('sit',[['em_orcamento','Conversando'],['orcado','Orçamento enviado'],['fechado','Fechou'],['perdido','Perdeu']],'em_orcamento')}</div>
+      <div class="grid full hide" id="prFech" style="grid-template-columns:1fr 1fr 1fr"><label class="f">Valor (R$)<input class="in" name="valor" type="number" step="any"></label><label class="f">Data do serviço<input class="in" name="data" type="date" value="${hoje()}"></label><label class="f">Horas<input class="in" name="horas" type="number" step="0.5"></label></div>
+      <div class="f full hide" id="prPerd"><span class="small mute">Motivo (opcional)</span>${chipsel('motivo',MOTIVOS_PERDA.map(m=>[m,m]),'')}</div>
+      <label class="f">Responsável<select class="in" name="responsavel">${OP.equipe.map(([e,n])=>`<option value="${esc(e)}" ${e===RESP_PEDIDOS?'selected':''}>${esc(n)}</option>`).join('')}</select></label>
+      <label class="f">Chegou em<input class="in" name="chegou" type="datetime-local" value="${new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,16)}"></label>
+      <label class="f full">Anotação<textarea class="in" name="mensagem" rows="2"></textarea></label>
+    </form>`,'Salvar pedido',async d=>{
+      const f=d.querySelector('#fPR'), v=Object.fromEntries(new FormData(f)), criado=new Date(v.chegou||Date.now());
+      const st=v.resp==='nao'?'novo':v.sit;
+      const dados={nome:v.nome||null,telefone:v.telefone||null,cidade:v.cidade||null,servico:v.servico||null,origem:v.origem||'whatsapp_direto',mensagem:v.mensagem||null,
+        responsavel:v.responsavel||null,criado_em:criado.toISOString(),status:st,conta_id:conta?conta.id:null,
+        respondido_em:v.resp==='nao'?null:new Date(criado.getTime()+Number(v.resp)*6e4).toISOString()};
+      if(st==='fechado') Object.assign(dados,{valor_fechado:v.valor?Number(v.valor):null,data_servico:v.data||null,horas:v.horas?Number(v.horas):null});
+      if(st==='perdido') dados.motivo_perda=v.motivo||null;
+      const {error}=await sb.from('pedidos').insert(dados); if(error){ toast('Erro: '+error.message); return false; }
+      toast(st==='fechado'&&dados.data_servico?'Pedido salvo · serviço na agenda':'Pedido salvo'); fecha(); depois?depois():render(); });
+  let conta=null, origemMexida=false, T;
+  const f=d.querySelector('#fPR');
+  f.addEventListener('change',e=>{ if(e.target.name==='origem') origemMexida=true;
+    const sit=(f.querySelector('[name=sit]:checked')||{}).value; d.querySelector('#prFech').classList.toggle('hide',sit!=='fechado'); d.querySelector('#prPerd').classList.toggle('hide',sit!=='perdido'); });
+  const E=f.elements;
+  E.telefone.addEventListener('input',()=>{ clearTimeout(T); T=setTimeout(async()=>{ const t=dig(E.telefone.value).slice(-8); conta=null; $('#prConta').textContent=''; if(t.length<8) return;
+    const [c,pp]=await Promise.all([sb.from('v_contas_canal').select('id,nome,cidade').like('fone_digitos','%'+t).limit(1),sb.from('pedidos').select('telefone').eq('status','fechado').not('telefone','is',null).limit(2000)]);
+    const ant=(pp.data||[]).some(x=>dig(x.telefone).slice(-8)===t); conta=(c.data||[])[0]||null;
+    $('#prConta').innerHTML=[conta?`Já está em Contas: <b>${esc(conta.nome)}</b> (o pedido fica ligado a ela)`:'',ant?'Já fechou serviço antes: marquei "Cliente que voltou"':''].filter(Boolean).join(' · ');
+    if(conta&&!E.nome.value) E.nome.value=conta.nome; if(conta&&!E.cidade.value) E.cidade.value=conta.cidade||'';
+    if(ant&&!origemMexida){ const r=f.querySelector('[name=origem][value=cliente_antigo]'); if(r) r.checked=true; } },400); });
+}
+function acoesPedido(p,d,depois){ // fechar ou perder sem abrir formulário
+  const box=document.createElement('div'); box.className='card';
+  box.innerHTML=`<b>Andamento</b>${chipsel('pa',[['orcado','Orçamento enviado'],['fechado','Fechou'],['perdido','Perdeu']],p.status)}
+    <div class="grid hide" id="paF" style="grid-template-columns:1fr 1fr 1fr;margin-top:8px"><label class="f">Valor (R$)<input class="in" id="paV" type="number" step="any" value="${p.valor_fechado??p.valor_orcado??''}"></label><label class="f">Data do serviço<input class="in" id="paD" type="date" value="${p.data_servico||hoje()}"></label><label class="f">Horas<input class="in" id="paH" type="number" step="0.5" value="${p.horas??''}"></label><button class="btn full" id="paOk">Salvar fechamento</button></div>
+    <div class="hide" id="paP" style="margin-top:8px"><span class="small mute">Motivo (opcional, salva ao clicar)</span>${chipsel('pm',[...MOTIVOS_PERDA,'Sem motivo'].map(m=>[m,m]),p.motivo_perda||'')}</div>`;
+  const alvo=d.querySelector('.card'); alvo?alvo.after(box):d.querySelector('h2').after(box);
+  const salva=async(dados,msg)=>{ const {error}=await sb.from('pedidos').update(dados).eq('id',p.id); if(error) return toast('Erro: '+error.message); toast(msg); fecha(); depois&&depois(); };
+  box.addEventListener('change',e=>{ const v=e.target.value;
+    if(e.target.name==='pa'){ box.querySelector('#paF').classList.toggle('hide',v!=='fechado'); box.querySelector('#paP').classList.toggle('hide',v!=='perdido'); if(v==='orcado') salva({status:'orcado'},'Orçamento enviado'); }
+    if(e.target.name==='pm') salva({status:'perdido',motivo_perda:v==='Sem motivo'?null:v},'Pedido marcado como perdido'); });
+  box.querySelector('#paOk').onclick=()=>{ const n=x=>x===''?null:Number(x);
+    salva({status:'fechado',valor_fechado:n($('#paV').value),data_servico:$('#paD').value||null,horas:n($('#paH').value)},$('#paD').value?'Fechado · serviço na agenda':'Fechado'); };
 }
 
 // Pedido: responder no WhatsApp tira do "novo" (o banco grava a hora da 1ª resposta)
@@ -384,6 +447,7 @@ function abrePedido(p,depois){
     ${p.telefone?`<textarea class="in small" rows="4" id="pMsg">${esc(txt)}</textarea><div class="bar" style="margin:8px 0 0">${ehCel(p.telefone)?'<button class="btn" id="pWa">Responder no WhatsApp</button>':''}<a class="btn sec" href="tel:${dig(p.telefone)}" id="pTel">Ligar ${esc(p.telefone)}</a></div>`:'<p class="late small">Pedido sem telefone.</p>'}</div>`});
   const respondeu=async()=>{ if(p.status!=='novo') return; const {error}=await sb.from('pedidos').update({status:'em_orcamento'}).eq('id',p.id); if(error) return toast(error.message);
     p.status='em_orcamento'; const s=d.querySelector('[name=status]'); if(s) s.value='em_orcamento'; toast('Marcado como em orçamento'); depois&&depois(); };
+  acoesPedido(p,d,depois);
   const w=d.querySelector('#pWa'); if(w) w.onclick=()=>{ window.open('https://wa.me/55'+dig(p.telefone)+'?text='+encodeURIComponent(d.querySelector('#pMsg').value),'_blank'); respondeu(); };
   const t=d.querySelector('#pTel'); if(t) t.addEventListener('click',respondeu);
 }
@@ -657,6 +721,213 @@ async function contas(){
   desenha();
 }
 
+/* Relatórios: período com comparação, filtros por responsável e origem; tudo calculado aqui a partir das tabelas */
+const PERIODOS=[['semana','Esta semana'],['semana_ant','Semana passada'],['mes','Este mês'],['mes_ant','Mês passado'],['30','Últimos 30 dias'],['90','Últimos 90 dias'],['ano','Este ano'],['livre','Escolher datas']];
+const VISOES=[['geral','Visão geral'],['pedidos','Pedidos e vendas'],['prosp','Prospecção'],['carteira','Carteira e clientes'],['oper','Operação'],['presenca','Presença e mercado']];
+const CONVERSA=['decisor','interessado','proposta','retorno','sem_interesse','cliente'];
+function intervalo(k,a,b){
+  const d=new Date(); d.setHours(0,0,0,0); let ini, fim=new Date(d);
+  const seg=x=>{ const y=new Date(x); y.setDate(y.getDate()-((y.getDay()+6)%7)); return y; };
+  if(k==='semana') ini=seg(d);
+  else if(k==='semana_ant'){ ini=seg(d); ini.setDate(ini.getDate()-7); fim=new Date(ini); fim.setDate(fim.getDate()+6); }
+  else if(k==='mes') ini=new Date(d.getFullYear(),d.getMonth(),1);
+  else if(k==='mes_ant'){ ini=new Date(d.getFullYear(),d.getMonth()-1,1); fim=new Date(d.getFullYear(),d.getMonth(),0); }
+  else if(k==='ano') ini=new Date(d.getFullYear(),0,1);
+  else if(k==='livre'){ ini=new Date((a||iso(d))+'T00:00'); fim=new Date((b||iso(d))+'T00:00'); if(fim<ini) [ini,fim]=[fim,ini]; }
+  else { ini=new Date(d); ini.setDate(ini.getDate()-Number(k)+1); }
+  const dias=Math.round((fim-ini)/864e5)+1; let pIni=new Date(ini), pFim=new Date(ini);
+  // semana, mês e ano comparam com os mesmos dias do período anterior; o resto, com os dias imediatamente antes
+  if(k==='semana'){ pIni.setDate(pIni.getDate()-7); pFim=new Date(fim); pFim.setDate(pFim.getDate()-7); }
+  else if(k==='mes'||k==='mes_ant'){ pIni=new Date(ini.getFullYear(),ini.getMonth()-1,1); const ult=new Date(ini.getFullYear(),ini.getMonth(),0).getDate(); pFim=new Date(ini.getFullYear(),ini.getMonth()-1,Math.min(fim.getDate(),ult)); }
+  else if(k==='ano'){ pIni=new Date(ini.getFullYear()-1,0,1); pFim=new Date(fim.getFullYear()-1,fim.getMonth(),fim.getDate()); }
+  else { pIni.setDate(pIni.getDate()-dias); pFim.setDate(pFim.getDate()-1); }
+  return {ini:iso(ini),fim:iso(fim),pIni:iso(pIni),pFim:iso(pFim),dias};
+}
+const diaDe=ts=>ts?iso(new Date(ts.length<=10?ts+'T12:00':ts)):null;
+const diasUteis=(a,b)=>{ let n=0; for(let d=new Date(a+'T12:00');iso(d)<=b;d.setDate(d.getDate()+1)) if(d.getDay()%6) n++; return n; };
+const pct=(a,b)=>b?Math.round(a/b*100):null;
+const minutos=p=>p.respondido_em?(new Date(p.respondido_em)-new Date(p.criado_em))/6e4:null;
+const chaveCli=p=>p.conta_id||(dig(p.telefone).length>=8?dig(p.telefone).slice(-8):'')||(p.empresa||p.nome||'').trim().toLowerCase()||p.id;
+const nomeCli=p=>p.empresa||p.nome||p.telefone||'Sem nome';
+const fmtH=h=>h==null?'—':(Math.round(h*10)/10).toLocaleString('pt-BR')+' h';
+const fmtMin=m=>m==null?'—':m<60?Math.round(m)+' min':m<1440?Math.round(m/60)+' h':Math.round(m/1440)+' d';
+const mediana=L=>{ const s=L.filter(x=>x!=null).sort((a,b)=>a-b); return s.length?s[Math.floor(s.length/2)]:null; };
+
+async function relatorios(){
+  const v=$('#view'); v.innerHTML='<p class="mute">Montando os relatórios…</p>';
+  let FR={}; try{ FR=JSON.parse(localStorage.getItem('fRel')||'{}'); }catch(e){}
+  let visao=FR.visao||'geral';
+  const desde=iso(new Date(Date.now()-400*864e5));
+  const [pe,at,co,ag,av,rk,li,rel]=await Promise.all([
+    sb.from('pedidos').select('*').order('criado_em').limit(5000),
+    sb.from('atividades').select('conta_id,tipo,resultado,feito_em,feito_por').gte('feito_em',desde).limit(20000),
+    sb.from('contas').select('id,nome,status,responsavel,fonte_lead,segmento,cidade,decisor_nome,telefone,proximo_passo_em,ultimo_contato_em,descarte_motivo,descartado_em,contato_situacao,contato_verificado_em,empresa_situacao').limit(5000),
+    sb.from('agenda').select('*').order('inicio'),
+    sb.from('avaliacoes').select('*'),
+    sb.from('ranking_semanal').select('*').order('data'),
+    sb.from('licitacoes').select('orgao,cidade,status,vale_a_pena,abertura,proxima_janela,valor_hora_munck'),
+    sb.from('v_relevancia').select('nome,indice,eh_rossignoli').order('indice',{ascending:false}),
+    OP.equipe.length?null:carregaEquipe()]);
+  const erro=[pe,at,co,ag].find(r=>r.error); if(erro) return toast(erro.error.message);
+  const PED=pe.data||[], AT=at.data||[], CO=co.data||[], AG=ag.data||[], AV=av.data||[], RK=rk.data||[], LI=li.data||[], RL=rel.data||[];
+  const contaPor=Object.fromEntries(CO.map(c=>[c.id,c]));
+  v.innerHTML=`<div class="bar noprint"><h2>Relatórios</h2>
+      <select class="in" id="rPer" style="width:auto">${PERIODOS.map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}</select>
+      <input class="in hide" type="date" id="rIni" style="width:auto"><input class="in hide" type="date" id="rFim" style="width:auto">
+      <select class="in" id="rResp" style="width:auto"><option value="">Toda a equipe</option>${OP.equipe.map(([e,n])=>`<option value="${esc(e)}">${esc(n)}</option>`).join('')}</select>
+      <select class="in" id="rOri" style="width:auto"><option value="">Todas as origens de pedido</option>${OP.origem.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join('')}</select>
+      <button class="btn sec" id="rPrint" style="margin-left:auto">Imprimir / PDF</button></div>
+    <div class="chips noprint" id="rVis"></div><div id="rOut" class="rel"></div>`;
+  $('#rPer').value=FR.per||'mes'; $('#rIni').value=FR.ini||''; $('#rFim').value=FR.fim||''; $('#rResp').value=FR.resp||''; $('#rOri').value=FR.ori||'';
+  let TABS=[];
+  const tabela=(titulo,cols,linhas,o={})=>{ const i=TABS.push({titulo,cols,linhas})-1;
+    return `<div class="card"><div class="bar" style="margin-bottom:6px"><h3 style="margin:0">${esc(titulo)}</h3>${linhas.length?`<button class="btn sec noprint" data-csv="${i}" style="margin-left:auto;padding:3px 10px">CSV</button>`:''}</div>
+      ${linhas.length?`<div class="tw"><table><thead><tr>${cols.map(c=>`<th${c[1]?' class="n"':''}>${esc(c[0])}</th>`).join('')}</tr></thead><tbody>${linhas.slice(0,o.max||50).map(l=>`<tr style="cursor:default">${l.map((x,j)=>`<td${cols[j][1]?' class="n"':''}>${cols[j][2]?cols[j][2](x):esc(x??'')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${linhas.length>(o.max||50)?`<p class="dica">Mostrando ${o.max||50} de ${linhas.length}; o CSV traz todas.</p>`:''}`:`<p class="mute small">${o.vazio||'Nada no período.'}</p>`}${o.dica?`<p class="dica">${o.dica}</p>`:''}</div>`; };
+  const barras=(titulo,L,fmt=x=>x,o={})=>{ const mx=Math.max(1,...L.map(x=>x[1]));
+    return `<div class="card"><h3>${esc(titulo)}</h3>${L.length?`<div class="bars">${L.map(([l,n,extra])=>`<div class="brow" style="grid-template-columns:170px 1fr 110px"><span>${esc(l)}</span><i style="width:${n/mx*100}%"></i><span class="small">${fmt(n)}${extra?` <span class="mute">${esc(extra)}</span>`:''}</span></div>`).join('')}</div>`:`<p class="mute small">${o.vazio||'Nada no período.'}</p>`}${o.dica?`<p class="dica">${o.dica}</p>`:''}</div>`; };
+  const colunas=(titulo,L,fmt=x=>x)=>{ const mx=Math.max(1,...L.map(x=>x[1]));
+    return `<div class="card"><h3>${esc(titulo)}</h3><div style="display:flex;align-items:flex-end;gap:4px;height:110px">${L.map(([l,n])=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%" title="${esc(l)}: ${esc(fmt(n))}"><span class="small" style="font-size:11px">${n?esc(fmt(n)):''}</span><div style="width:100%;background:var(--orange);border-radius:3px 3px 0 0;height:${n/mx*80}%;min-height:${n?3:1}px;${n?'':'background:var(--line)'}"></div></div>`).join('')}</div><div style="display:flex;gap:4px">${L.map(([l])=>`<span style="flex:1;text-align:center;font-size:10px" class="mute">${esc(l)}</span>`).join('')}</div></div>`; };
+  const kpi=(val,rot,ant,o={})=>{ let d='';
+    if(ant!=null&&o.num!=null&&o.ant!=null&&(o.num||o.ant)){ const diff=o.num-o.ant, bom=o.menor?diff<0:diff>0;
+      d=diff?`<i class="${bom?'sobe':'desce'}"> ${diff>0?'▲':'▼'} ${esc(ant)} antes</i>`:`<i class="mute"> = antes</i>`; }
+    return `<div class="kpi${o.alerta?' alerta':''}" ${o.dica?`title="${esc(o.dica)}"`:''}><b>${val}</b><small>${rot}${d?'<br>'+d:''}</small></div>`; };
+
+  const desenha=()=>{
+    const per=$('#rPer').value; $('#rIni').classList.toggle('hide',per!=='livre'); $('#rFim').classList.toggle('hide',per!=='livre');
+    FR={visao,per,ini:$('#rIni').value,fim:$('#rFim').value,resp:$('#rResp').value,ori:$('#rOri').value}; try{ localStorage.setItem('fRel',JSON.stringify(FR)); }catch(e){}
+    const I=intervalo(per,FR.ini,FR.fim), rp=FR.resp, ori=FR.ori, h=hoje();
+    const dentro=(x,a,b)=>!!x&&x>=a&&x<=b;
+    const P=PED.filter(p=>(!rp||p.responsavel===rp)&&(!ori||p.origem===ori));
+    const A=AT.filter(a=>!rp||a.feito_por===rp);
+    const C=CO.filter(c=>!rp||c.responsavel===rp);
+    const diaFech=p=>p.data_servico||diaDe(p.atualizado_em);
+    const M=(a,b)=>{ const cri=P.filter(p=>dentro(diaDe(p.criado_em),a,b)), resp=cri.filter(p=>p.respondido_em);
+      const fech=P.filter(p=>p.status==='fechado'&&dentro(diaFech(p),a,b)), comV=fech.filter(p=>p.valor_fechado!=null);
+      const dec=cri.filter(p=>['fechado','perdido'].includes(p.status));
+      const fat=comV.reduce((s,p)=>s+Number(p.valor_fechado),0), horas=fech.reduce((s,p)=>s+Number(p.horas||0),0);
+      const antes={}; P.filter(p=>p.status==='fechado').sort((x,y)=>(diaFech(x)||'').localeCompare(diaFech(y)||'')).forEach(p=>{ const k=chaveCli(p); p._volta=!!antes[k]; antes[k]=1; });
+      const fatVolta=comV.filter(p=>p._volta||p.origem==='cliente_antigo').reduce((s,p)=>s+Number(p.valor_fechado),0);
+      const ag=AG.filter(x=>dentro(diaDe(x.inicio),a,b)), hAg=ag.reduce((s,x)=>s+(new Date(x.fim)-new Date(x.inicio))/36e5,0);
+      const at=A.filter(x=>dentro(diaDe(x.feito_em),a,b)), conv=at.filter(x=>CONVERSA.includes(x.resultado));
+      return {cri,resp,r5:resp.filter(p=>minutos(p)<=5).length,fech,comV,dec,fat,horas,fatVolta,ag,hAg,uteis:diasUteis(a,b),at,conv,
+        taxa:pct(dec.filter(p=>p.status==='fechado').length,dec.length),ticket:comV.length?fat/comV.length:null,medResp:mediana(resp.map(minutos))}; };
+    const m=M(I.ini,I.fim), a=M(I.pIni,I.pFim);
+    const uso=x=>x.uteis?Math.round(x.hAg/(x.uteis*10)*100):null;
+    const cab=`<p class="small mute" style="margin:0 0 10px">${dt(I.ini)} a ${dt(I.fim)} · comparado com ${dt(I.pIni)} a ${dt(I.pFim)}${rp?' · '+esc(nomeResp(rp)):''}${ori?' · origem: '+esc(lab('origem',ori)):''}</p>`;
+    TABS=[]; let html='';
+    const semanas=(n,val)=>{ const L=[]; const d=new Date(); d.setHours(12,0,0,0); d.setDate(d.getDate()-((d.getDay()+6)%7)); for(let i=n-1;i>=0;i--){ const s=new Date(d); s.setDate(s.getDate()-7*i); const e=new Date(s); e.setDate(e.getDate()+6); L.push([s.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}),val(iso(s),iso(e))]); } return L; };
+    const agrupa=(L,k,val=()=>1)=>{ const g={}; L.forEach(x=>{ const c=k(x)||'—'; g[c]=(g[c]||0)+val(x); }); return Object.entries(g).sort((x,y)=>y[1]-x[1]); };
+
+    if(visao==='geral'){
+      const novos=P.filter(p=>p.status==='novo'), parados=P.filter(p=>['em_orcamento','orcado'].includes(p.status)), p2=parados.filter(p=>diasDesde(diaDe(p.atualizado_em))>2), p7=parados.filter(p=>diasDesde(diaDe(p.atualizado_em))>7);
+      const venc=C.filter(c=>['a_contatar','contatado','proposta'].includes(c.status)&&c.proximo_passo_em&&c.proximo_passo_em<h);
+      const ult={}; P.filter(p=>p.status==='fechado').forEach(p=>{ const k=chaveCli(p), d=diaFech(p); if(!ult[k]||d>ult[k].d) ult[k]={d,p}; });
+      const sumidos=Object.values(ult).filter(x=>diasDesde(x.d)>90);
+      const semValor=P.filter(p=>p.status==='fechado'&&p.valor_fechado==null);
+      const alertas=[[novos.length,`pedido(s) novo(s) sem resposta${novos.length?' — o mais antigo há '+idade(novos[0].criado_em):''}`,'pedidos'],
+        [p2.length,`orçamento(s) sem andamento há mais de 2 dias (${p7.length} há mais de 7). Orçamento que fecha costuma fechar em 2 dias; depois de 14 a chance cai muito.`,'pedidos'],
+        [venc.length,'retorno(s) vencido(s) na Fila','fila'],[sumidos.length,'cliente(s) sem serviço há mais de 90 dias: vale uma mensagem','carteira'],
+        [semValor.length,'pedido(s) fechado(s) sem valor: o faturamento fica menor do que foi','pedidos'],
+        [C.filter(c=>['a_contatar','contatado','proposta'].includes(c.status)&&!c.responsavel).length,'conta(s) aberta(s) sem responsável','contas']].filter(x=>x[0]);
+      html=`<div class="kpis">
+        ${kpi(m.cri.length,'pedidos',a.cri.length,{num:m.cri.length,ant:a.cri.length})}
+        ${kpi(m.resp.length?pct(m.r5,m.resp.length)+'%':'—','respondidos em até 5 min<br><span class="mute">típico: '+fmtMin(m.medResp)+'</span>',a.resp.length?pct(a.r5,a.resp.length)+'%':null,{num:pct(m.r5,m.resp.length),ant:pct(a.r5,a.resp.length),dica:'Quem responde em até 5 minutos fecha muito mais (estudo MIT/InsideSales).'})}
+        ${kpi(m.taxa==null?'—':m.taxa+'%','taxa de fechamento<br><span class="mute">'+m.dec.filter(p=>p.status==='fechado').length+' de '+m.dec.length+' decididos</span>',a.taxa==null?null:a.taxa+'%',{num:m.taxa,ant:a.taxa})}
+        ${kpi(brl(m.fat)||'R$ 0','faturamento registrado',brl(a.fat)||'R$ 0',{num:m.fat,ant:a.fat})}
+        ${kpi(m.ticket==null?'—':brl(m.ticket),'ticket médio',a.ticket==null?null:brl(a.ticket),{num:m.ticket,ant:a.ticket})}
+        ${kpi(fmtH(m.horas),'horas vendidas',fmtH(a.horas),{num:m.horas,ant:a.horas})}
+        ${kpi(uso(m)==null?'—':uso(m)+'%','uso do caminhão (agenda ÷ dias úteis × 10 h)',uso(a)==null?null:uso(a)+'%',{num:uso(m),ant:uso(a),dica:'Estimativa pela Agenda. Referência de locadoras: 65–75% do tempo.'})}
+        ${kpi(m.fat?pct(m.fatVolta,m.fat)+'%':'—','da receita veio de cliente que voltou',a.fat?pct(a.fatVolta,a.fat)+'%':null,{num:m.fat?pct(m.fatVolta,m.fat):null,ant:a.fat?pct(a.fatVolta,a.fat):null})}
+        ${kpi(m.at.length,'contatos de prospecção',a.at.length,{num:m.at.length,ant:a.at.length})}
+        ${kpi(m.conv.length,'viraram conversa'+(m.at.length?' ('+pct(m.conv.length,m.at.length)+'%)':''),a.conv.length,{num:m.conv.length,ant:a.conv.length})}
+      </div>
+      <div class="card ${alertas.length?'alerta':''}"><h3>O que pede ação agora</h3>${alertas.length?'<ul>'+alertas.map(([n,t,ab])=>`<li><b>${n}</b> ${t} <a href="#${ab==='carteira'?'relatorios':ab}" class="small noprint" ${ab==='carteira'?'data-vis="carteira"':''}>ver</a></li>`).join('')+'</ul>':'<p class="mute small">Nada pendente.</p>'}</div>
+      <div class="cols2">${colunas('Pedidos por semana (12 semanas)',semanas(12,(s,e)=>P.filter(p=>dentro(diaDe(p.criado_em),s,e)).length))}
+      ${colunas('Faturamento por semana (12 semanas)',semanas(12,(s,e)=>P.filter(p=>p.status==='fechado'&&dentro(diaFech(p),s,e)).reduce((t,p)=>t+Number(p.valor_fechado||0),0)),x=>x>=1000?Math.round(x/100)/10+' mil':x)}</div>
+      ${!PED.length?'<div class="aviso">Ainda não há pedidos registrados. Use <b>+ Pedido</b> (no topo) sempre que chegar um pedido por WhatsApp, telefone ou indicação: é isso que alimenta estes números.</div>':''}`;
+    }
+    if(visao==='pedidos'){
+      const cri=m.cri, cnt=s=>cri.filter(p=>p.status===s).length;
+      const faixa=p=>{ const x=minutos(p); return x==null?'Sem resposta registrada':x<=5?'Até 5 min':x<=60?'5 a 60 min':x<=1440?'1 a 24 h':'Mais de 24 h'; };
+      const porOri=agrupa(cri,p=>p.origem).map(([o])=>{ const L=cri.filter(p=>p.origem===o), f=L.filter(p=>p.status==='fechado'), pd=L.filter(p=>p.status==='perdido');
+        return [lab('origem',o),L.length,f.length,pd.length,pct(f.length,f.length+pd.length),f.reduce((s,p)=>s+Number(p.valor_fechado||0),0),fmtMin(mediana(L.map(minutos)))]; });
+      const porX=k=>agrupa(cri,p=>k(p)).slice(0,12).map(([x])=>{ const L=cri.filter(p=>(k(p)||'—')===x), f=L.filter(p=>p.status==='fechado'); return [x,L.length,f.length,f.reduce((s,p)=>s+Number(p.valor_fechado||0),0)]; });
+      html=`<div class="card"><h3>Caminho dos pedidos que chegaram no período</h3><div class="kpis">${[['novo','Sem resposta'],['em_orcamento','Conversando'],['orcado','Orçamento enviado'],['fechado','Fechou'],['perdido','Perdeu']].map(([s,l])=>kpi(cnt(s),l)).join('')}</div></div>
+        ${tabela('Por origem',[['Origem'],['Pedidos',1],['Fechados',1],['Perdidos',1],['Fechamento',1,x=>x==null?'—':x+'%'],['Faturamento',1,brl],['Resposta típica',1]],porOri,{dica:'Referência de outros serviços: cliente que volta fecha 50–70%, indicação 40–60%, site 25–35%, prospecção fria 5–15%. Compare as suas origens entre si.'})}
+        <div class="cols2">${barras('Tempo até responder',['Até 5 min','5 a 60 min','1 a 24 h','Mais de 24 h','Sem resposta registrada'].map(f=>[f,cri.filter(p=>faixa(p)===f).length]))}
+        ${barras('Motivos de perda',agrupa(cri.filter(p=>p.status==='perdido'),p=>p.motivo_perda||'Sem motivo'),x=>x,{vazio:'Nenhum pedido perdido no período.'})}</div>
+        <div class="cols2">${tabela('Por cidade',[['Cidade'],['Pedidos',1],['Fechados',1],['Faturamento',1,brl]],porX(p=>p.cidade))}${tabela('Por serviço',[['Serviço'],['Pedidos',1],['Fechados',1],['Faturamento',1,brl]],porX(p=>p.servico||p.carga))}</div>
+        ${tabela('Pedidos do período',[['Chegou'],['Cliente'],['Cidade'],['Serviço'],['Origem'],['Situação'],['Resposta'],['Valor',1,brl],['Resp.']],
+          cri.slice().reverse().map(p=>[dth(p.criado_em),nomeCli(p),p.cidade,p.servico||p.carga,lab('origem',p.origem),lab('pedido_status',p.status),fmtMin(minutos(p)),p.valor_fechado??p.valor_orcado,nomeResp(p.responsavel)]),{max:100})}`;
+    }
+    if(visao==='prosp'){
+      const at=m.at, pessoas=[...new Set(at.map(x=>x.feito_por).filter(Boolean))];
+      const porPessoa=pessoas.map(e=>{ const L=at.filter(x=>x.feito_por===e), dias=new Set(L.map(x=>diaDe(x.feito_em))).size, cv=L.filter(x=>CONVERSA.includes(x.resultado)).length;
+        return [nomeResp(e),L.length,new Set(L.map(x=>x.conta_id)).size,dias,m.uteis?Math.round(L.length/m.uteis*10)/10:null,cv,pct(cv,L.length),CO.filter(c=>c.responsavel===e&&['a_contatar','contatado','proposta'].includes(c.status)&&c.proximo_passo_em&&c.proximo_passo_em<h).length]; }).sort((x,y)=>y[1]-x[1]);
+      const porConta={}; at.forEach(x=>{ (porConta[x.conta_id]=porConta[x.conta_id]||[]).push(x.resultado); });
+      const porGrupo=k=>{ const g={}; Object.entries(porConta).forEach(([id,rs])=>{ const c=contaPor[id]; if(!c) return; const x=k(c)||'—'; const o=g[x]=g[x]||[0,0,0,0];
+        o[0]++; if(rs.some(r=>CONVERSA.includes(r))) o[1]++; if(rs.some(r=>['interessado','proposta'].includes(r))) o[2]++; if(c.status==='cliente') o[3]++; });
+        return Object.entries(g).sort((a,b)=>b[1][0]-a[1][0]).map(([x,o])=>[x,o[0],o[1],pct(o[1],o[0]),o[2],o[3]]); };
+      const desc=C.filter(c=>c.status==='descartada'&&dentro(c.descartado_em,I.ini,I.fim));
+      html=`${tabela('Por pessoa',[['Pessoa'],['Contatos',1],['Contas',1],['Dias com contato',1],['Média por dia útil',1,x=>x==null?'—':x.toLocaleString('pt-BR')],['Conversas',1],['% conversa',1,x=>x==null?'—':x+'%'],['Retornos vencidos',1]],porPessoa,{dica:'Meta do painel: 15 contas por dia por pessoa.'})}
+        <div class="cols2">${barras('Resultado das tentativas',agrupa(at,x=>RES[x.resultado]||x.resultado||'Sem resultado'))}
+        ${barras('Descartes por motivo',agrupa(desc,c=>lab('descarte',c.descarte_motivo)||'Sem motivo'),x=>x,{vazio:'Nenhuma conta descartada no período.',dica:'Muitos "fora do perfil" numa origem ou segmento: a rotina passa a trazer menos desse tipo.'})}</div>
+        ${tabela('Por origem do lead',[['Origem'],['Contas trabalhadas',1],['Com conversa',1],['% conversa',1,x=>x==null?'—':x+'%'],['Interesse ou orçamento',1],['Viraram cliente',1]],porGrupo(c=>origem(c)))}
+        ${tabela('Por segmento',[['Segmento'],['Contas trabalhadas',1],['Com conversa',1],['% conversa',1,x=>x==null?'—':x+'%'],['Interesse ou orçamento',1],['Viraram cliente',1]],porGrupo(c=>c.segmento),{max:20})}
+        ${colunas('Contatos por semana (12 semanas)',semanas(12,(s,e)=>A.filter(x=>dentro(diaDe(x.feito_em),s,e)).length))}`;
+    }
+    if(visao==='carteira'){
+      const ab=C.filter(c=>['a_contatar','contatado','proposta'].includes(c.status));
+      const porResp=[...new Set(C.map(c=>c.responsavel||''))].map(e=>{ const L=ab.filter(c=>(c.responsavel||'')===e);
+        return [e?nomeResp(e):'Sem responsável',L.length,L.filter(c=>c.status==='contatado').length,L.filter(c=>c.status==='proposta').length,L.filter(c=>c.proximo_passo_em&&c.proximo_passo_em<h).length,C.filter(c=>(c.responsavel||'')===e&&c.status==='cliente').length]; }).filter(x=>x[1]||x[5]).sort((a,b)=>b[1]-a[1]);
+      const cli={}; P.filter(p=>p.status==='fechado').forEach(p=>{ const k=chaveCli(p), d=diaFech(p), o=cli[k]=cli[k]||{nome:nomeCli(p),cidade:p.cidade,n:0,tot:0,ult:''}; o.n++; o.tot+=Number(p.valor_fechado||0); if((d||'')>o.ult){ o.ult=d; o.nome=nomeCli(p); } });
+      const CL=Object.values(cli).sort((a,b)=>b.tot-a.tot||b.n-a.n);
+      const parados=P.filter(p=>['em_orcamento','orcado'].includes(p.status)).map(p=>[nomeCli(p),p.cidade,p.servico||p.carga,lab('pedido_status',p.status),diasDesde(diaDe(p.atualizado_em)),nomeResp(p.responsavel)]).sort((a,b)=>b[4]-a[4]);
+      const propParadas=C.filter(c=>c.status==='proposta'&&(!c.ultimo_contato_em||diasDesde(diaDe(c.ultimo_contato_em))>7)).map(c=>[c.nome,c.cidade,dt(diaDe(c.ultimo_contato_em)),nomeResp(c.responsavel)]);
+      html=`<div class="kpis">${kpi(ab.length,'contas abertas')}${kpi(ab.filter(c=>!c.responsavel).length,'sem responsável')}${kpi(ab.filter(c=>!c.decisor_nome).length,'sem decisor')}${kpi(ab.filter(c=>!c.telefone).length,'sem telefone')}${kpi(C.filter(c=>c.status==='cliente').length,'clientes em Contas')}${kpi(CL.length,'clientes com serviço registrado')}</div>
+        ${tabela('Carteira por responsável',[['Responsável'],['Abertas',1],['Contatadas',1],['Com proposta',1],['Retorno vencido',1],['Clientes',1]],porResp)}
+        ${tabela('Orçamentos esperando resposta do cliente',[['Cliente'],['Cidade'],['Serviço'],['Situação'],['Dias parado',1],['Resp.']],parados,{vazio:'Nenhum orçamento em aberto.',dica:'Retome em até 2 dias; depois de 7 dias a chance cai muito. Três retornos fecham bem mais que um.'})}
+        ${propParadas.length?tabela('Contas com proposta e sem contato há mais de 7 dias',[['Conta'],['Cidade'],['Último contato'],['Resp.']],propParadas):''}
+        ${tabela('Clientes (serviços fechados, desde o início)',[['Cliente'],['Cidade'],['Serviços',1],['Total',1,brl],['Último serviço'],['Dias sem serviço',1,x=>x>90?`<span class="late">${x}</span>`:x]],CL.map(o=>[o.nome,o.cidade,o.n,o.tot,dt(o.ult),o.ult?Math.max(0,diasDesde(o.ult)):null]),{vazio:'Nenhum serviço fechado registrado ainda.',dica:'Em locadoras de guindaste, a maior parte da receita costuma vir de clientes que voltam. Quem passou de 90 dias sem serviço merece uma mensagem.'})}`;
+    }
+    if(visao==='oper'){
+      const fech=m.fech, comHV=fech.filter(p=>p.horas&&p.valor_fechado!=null), rh=comHV.reduce((s,p)=>s+Number(p.horas),0);
+      const diasServ=new Set(m.ag.map(x=>diaDe(x.inicio))).size;
+      const porCid=agrupa(fech,p=>p.cidade).map(([c])=>{ const L=fech.filter(p=>(p.cidade||'—')===c); return [c,L.length,L.reduce((s,p)=>s+Number(p.horas||0),0),L.reduce((s,p)=>s+Number(p.valor_fechado||0),0)]; });
+      html=`<div class="kpis">${kpi(fmtH(m.hAg),'horas na agenda',fmtH(a.hAg),{num:m.hAg,ant:a.hAg})}${kpi(diasServ,'dias com serviço')}${kpi(Math.max(0,m.uteis-diasServ),'dias úteis sem serviço')}
+        ${kpi(uso(m)==null?'—':uso(m)+'%','uso do caminhão',uso(a)==null?null:uso(a)+'%',{num:uso(m),ant:uso(a)})}${kpi(rh?brl(comHV.reduce((s,p)=>s+Number(p.valor_fechado),0)/rh):'—','faturado por hora (pedidos com valor e horas)')}${kpi(fmtH(m.horas),'horas vendidas nos pedidos')}</div>
+        <p class="dica">Uso = horas na Agenda ÷ (dias úteis × 10 h). Locadoras miram 65–75% do tempo; acima disso falta folga para manutenção. Serviço fechado com data entra sozinho na Agenda (às 8 h, com as horas informadas).</p>
+        ${tabela('Por cidade',[['Cidade'],['Serviços',1],['Horas',1,fmtH],['Faturamento',1,brl]],porCid)}
+        ${tabela('Agenda do período',[['Início'],['Fim'],['Cidade'],['Equip.'],['Obs.']],m.ag.map(x=>[dth(x.inicio),dth(x.fim),x.cidade,x.equipamento,x.observacoes]),{vazio:'Nada na agenda no período.'})}`;
+    }
+    if(visao==='presenca'){
+      const buscas=[...new Set(RK.map(r=>r.busca))];
+      const rkL=buscas.map(b=>{ const L=RK.filter(r=>r.busca===b), u=L[L.length-1], p=L[L.length-2]; return [b,u?(u.posicao?u.posicao+'º':'não aparece'):'—',p?(p.posicao?p.posicao+'º':'não aparece'):'—',u?dt(u.data):'',u?.avaliacoes,u?.nota]; });
+      const avP=AV.filter(x=>dentro(x.pedido_em,I.ini,I.fim)), eu=RL.find(x=>x.eh_rossignoli), pos=RL.findIndex(x=>x.eh_rossignoli)+1;
+      const d30=iso(new Date(Date.now()+30*864e5));
+      html=`<div class="kpis">${kpi(avP.length,'avaliações pedidas no período')}${kpi(avP.filter(x=>x.avaliou).length,'avaliaram'+(avP.length?' ('+pct(avP.filter(x=>x.avaliou).length,avP.length)+'%)':''))}
+        ${kpi(AV.filter(x=>x.avaliou).length,'avaliações registradas no total')}${kpi(AV.filter(x=>x.avaliou).length?pct(AV.filter(x=>x.avaliou&&x.respondida).length,AV.filter(x=>x.avaliou).length)+'%':'—','avaliações respondidas')}
+        ${kpi(eu?eu.indice:'—','índice de relevância'+(pos?` · ${pos}º de ${RL.length}`:''))}${kpi(LI.filter(l=>['monitorar','preparar'].includes(l.status)&&(l.abertura||l.proxima_janela)&&(l.abertura||l.proxima_janela)<=d30&&(l.abertura||l.proxima_janela)>=h).length,'licitações com data nos próximos 30 dias')}</div>
+        ${tabela('Posição no Google Maps (última medição × anterior)',[['Busca'],['Agora'],['Antes'],['Medido em'],['Avaliações',1],['Nota',1]],rkL)}
+        <div class="cols2">${barras('Licitações por situação',OP.lic_status.map(([k,l])=>[l,LI.filter(x=>x.status===k).length]).filter(x=>x[1]))}
+        ${barras('Licitações que valem a pena',OP.vale.map(([k,l])=>[l,LI.filter(x=>x.vale_a_pena===k).length]).filter(x=>x[1]))}</div>
+        <p class="dica">Ligações, rotas e cliques do Perfil do Google ficam no próprio Perfil (Desempenho); o relatório semanal lembra de anotar esses números uma vez por mês.</p>`;
+    }
+    $('#rVis').innerHTML=VISOES.map(([k,l])=>`<button class="chip${k===visao?' on':''}" data-v="${k}">${l}</button>`).join('');
+    $('#rOut').innerHTML=cab+html;
+    $('#rOut').querySelectorAll('[data-csv]').forEach(b=>b.onclick=()=>{ const T=TABS[b.dataset.csv];
+      const q=x=>{ const s=String(x??'').replace(/<[^>]+>/g,''); return /[";\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
+      const csv='﻿'+[T.cols.map(c=>q(c[0])),...T.linhas.map(l=>l.map(q))].map(l=>l.join(';')).join('\n');
+      const u=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})), el=document.createElement('a');
+      el.href=u; el.download=`${T.titulo.replace(/[^\wÀ-ú ]+/g,'').trim().replace(/\s+/g,'-').toLowerCase()}-${I.ini}-a-${I.fim}.csv`; el.click(); setTimeout(()=>URL.revokeObjectURL(u),1000); });
+    $('#rOut').querySelectorAll('[data-vis]').forEach(x=>x.onclick=e=>{ e.preventDefault(); visao=x.dataset.vis; desenha(); });
+  };
+  $('#rVis').onclick=e=>{ const b=e.target.closest('[data-v]'); if(!b) return; visao=b.dataset.v; desenha(); };
+  ['rPer','rIni','rFim','rResp','rOri'].forEach(k=>$('#'+k).onchange=desenha);
+  $('#rPrint').onclick=()=>window.print();
+  desenha();
+}
+
 /* Tabelas simples */
 async function simples(tab,titulo,ordem,asc,colunas,novoPadrao,tituloReg){
   const v=$('#view');
@@ -892,6 +1163,7 @@ $('#fLogin').onsubmit=async e=>{
   if(error) $('#lErr').textContent='Usuário ou senha incorretos.';
 };
 $('#sair').onclick=()=>sb.auth.signOut();
+$('#pedRap').onclick=()=>pedidoRapido();
 // O Supabase repete o evento de login quando a aba volta ao foco (ex.: depois de abrir o WhatsApp).
 // Só desenha no primeiro login, senão a tela recarrega e perde gaveta aberta, anotações e filtros.
 let iniciado=false;
