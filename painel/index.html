@@ -391,6 +391,7 @@ async function pedidos(){
 }
 
 // Pedido rápido: quem atende no WhatsApp/telefone registra em segundos; tudo é opcional
+const CID_PAG={'tres-coracoes':'Três Corações','tres-pontas':'Três Pontas','eloi-mendes':'Elói Mendes',campanha:'Campanha',lambari:'Lambari',nepomuceno:'Nepomuceno','boa-esperanca':'Boa Esperança',lavras:'Lavras',alfenas:'Alfenas','pouso-alegre':'Pouso Alegre','santa-rita-do-sapucai':'Santa Rita do Sapucaí','sao-lourenco':'São Lourenço'};   // páginas de cidade do site
 const RESP_PEDIDOS='renan@rossignolilocacoes.com.br';
 const MOTIVOS_PERDA=['Preço','Agenda / prazo','Equipamento não atende','Cliente sumiu','Fechou com outro','Desistiu','Outro'];
 const chipsel=(nome,L,marcado)=>`<div class="chipsel">${L.map(([v,t])=>`<label><input type="radio" name="${nome}" value="${esc(v)}" ${v===marcado?'checked':''}>${esc(t)}</label>`).join('')}</div>`;
@@ -403,14 +404,14 @@ async function pedidoRapido(depois){
       <p class="small full" id="prConta" style="margin:-4px 0 0"></p>
       <label class="f">Cidade<input class="in" name="cidade"></label>
       <label class="f">O que precisa<input class="in" name="servico" placeholder="Ex.: subir caixa d'água de 5 mil litros"></label>
-      <div class="f full"><span class="small mute">Por onde chegou</span>${chipsel('origem',OP.origem.filter(o=>!['olx','licitacao','parceiro','site'].includes(o[0])),'whatsapp_direto')}</div>
+      <div class="f full"><span class="small mute">Por onde chegou</span>${chipsel('origem',OP.origem.filter(o=>!['olx','licitacao','parceiro'].includes(o[0])),'whatsapp_direto')}</div>
       <div class="f full"><span class="small mute">Resposta</span>${chipsel('resp',[['5','Respondi na hora'],['30','Em até 1 hora'],['180','Mais tarde'],['nao','Ainda não respondi']],'5')}</div>
       <div class="f full"><span class="small mute">Situação</span>${chipsel('sit',[['em_orcamento','Conversando'],['orcado','Orçamento enviado'],['fechado','Fechou'],['perdido','Perdeu']],'em_orcamento')}</div>
       <div class="grid full hide" id="prFech" style="grid-template-columns:1fr 1fr 1fr"><label class="f">Valor (R$)<input class="in" name="valor" type="number" step="any"></label><label class="f">Data do serviço<input class="in" name="data" type="date" value="${hoje()}"></label><label class="f">Horas<input class="in" name="horas" type="number" step="0.5"></label></div>
       <div class="f full hide" id="prPerd"><span class="small mute">Motivo (opcional)</span>${chipsel('motivo',MOTIVOS_PERDA.map(m=>[m,m]),'')}</div>
       <label class="f">Responsável<select class="in" name="responsavel">${OP.equipe.map(([e,n])=>`<option value="${esc(e)}" ${e===RESP_PEDIDOS?'selected':''}>${esc(n)}</option>`).join('')}</select></label>
       <label class="f">Chegou em<input class="in" name="chegou" type="datetime-local" value="${new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,16)}"></label>
-      <label class="f full">Anotação<textarea class="in" name="mensagem" rows="2"></textarea></label>
+      <label class="f full">Anotação ou primeira mensagem do cliente<textarea class="in" name="mensagem" rows="2" placeholder="Cole aqui a mensagem: se veio do site, a origem é marcada sozinha"></textarea></label>
     </form>`,'Salvar pedido',async d=>{
       const f=d.querySelector('#fPR'), v=Object.fromEntries(new FormData(f)), criado=new Date(v.chegou||Date.now());
       const st=v.resp==='nao'?'novo':v.sit;
@@ -426,6 +427,11 @@ async function pedidoRapido(depois){
   f.addEventListener('change',e=>{ if(e.target.name==='origem') origemMexida=true;
     const sit=(f.querySelector('[name=sit]:checked')||{}).value; d.querySelector('#prFech').classList.toggle('hide',sit!=='fechado'); d.querySelector('#prPerd').classList.toggle('hide',sit!=='perdido'); });
   const E=f.elements;
+  // mensagem que saiu do site termina com "(… via site · página · canal)": marca a origem sozinha
+  E.mensagem.addEventListener('input',()=>{ const m=E.mensagem.value.match(/via site · ([^)]*)\)/); if(!m) return;
+    const canal=m[1].split('·').pop().trim(), o=/perfil do google/i.test(canal)?'google_perfil':/instagram/i.test(canal)?'instagram':'site';
+    const r=f.querySelector(`[name=origem][value=${o}]`); if(r){ r.checked=true; origemMexida=true; }
+    if(!E.cidade.value){ const c=m[1].match(/cidade-([a-z-]+)/); if(c) E.cidade.value=CID_PAG[c[1]]||c[1]; } });
   E.telefone.addEventListener('input',()=>{ clearTimeout(T); T=setTimeout(async()=>{ const t=dig(E.telefone.value).slice(-8); conta=null; $('#prConta').textContent=''; if(t.length<8) return;
     const [c,pp]=await Promise.all([sb.from('v_contas_canal').select('id,nome,cidade').like('fone_digitos','%'+t).limit(1),sb.from('pedidos').select('telefone').eq('status','fechado').not('telefone','is',null).limit(2000)]);
     const ant=(pp.data||[]).some(x=>dig(x.telefone).slice(-8)===t); conta=(c.data||[])[0]||null;

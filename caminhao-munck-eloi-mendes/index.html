@@ -96,5 +96,25 @@ document.addEventListener('click',function(e){
   if(window.gtag) gtag('event','generate_lead',{metodo:'whatsapp',cidade:"Elói Mendes"});
 });
 </script>
+<script>
+// Origem do contato na mensagem do WhatsApp: guarda de onde a pessoa chegou (Perfil do Google, Instagram, Google...)
+// e acrescenta à mensagem, para quem atende saber o canal só de ler a primeira mensagem.
+(function(){
+  var ROT={gbp:'Perfil do Google','google_perfil':'Perfil do Google',instagram:'Instagram','l.instagram.com':'Instagram',facebook:'Facebook','l.facebook.com':'Facebook','m.facebook.com':'Facebook','google.com':'Google','google.com.br':'Google','bing.com':'Bing',direto:'direto'};
+  var o=null, p=new URLSearchParams(location.search);
+  try{ o=sessionStorage.getItem('origemRossignoli'); }catch(e){}
+  if(!o){ o=p.get('utm_source')||p.get('o');
+    if(!o){ try{ var h=document.referrer?new URL(document.referrer).hostname.replace('www.',''):''; o=h&&h.indexOf('rossignolilocacoes')<0?h:'direto'; }catch(e){ o='direto'; } }
+    try{ sessionStorage.setItem('origemRossignoli',o); }catch(e){} }
+  var rot=ROT[o]||o, pag=(document.querySelector('.crumbs')||{}).textContent;
+  pag=pag?pag.split('›').pop().trim():(location.pathname==='/'?'início':'site');
+  document.addEventListener('click',function(e){
+    var a=e.target.closest('a[href*="wa.me/"]'); if(!a||a.dataset.origem) return;
+    var u=new URL(a.href), t=u.searchParams.get('text')||'Olá, Rossignoli!'; if(/via site · [^)]* · /.test(t)) return;   // já tem o canal (montador da home)
+    t=/\(pedido via site · [^)]*\)/.test(t)?t.replace(/\(pedido via site · ([^)]*)\)/,'(pedido via site · $1 · '+rot+')'):t+'\n\n(via site · '+pag+' · '+rot+')';
+    u.searchParams.set('text',t); a.href=u.toString(); a.dataset.origem='1';
+  },true);
+})();
+</script>
 </body>
 </html>

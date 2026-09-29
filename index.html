@@ -574,7 +574,7 @@ footer a{color:#EDE9E3}
       <h2 id="h-b2b">Atendimento direto para empresas.</h2>
       <p class="lede" style="color:#D8D2CA;margin-top:18px">Precisa cadastrar fornecedor, agendar fora do expediente ou ter o munck com frequência? Mande pelo WhatsApp o que a sua empresa exige e a gente combina tudo antes do serviço.</p>
       <div class="cta-row">
-        <a class="btn btn-wa" data-ev="wa_empresas" href="https://wa.me/5535991912616?text=Ol%C3%A1%2C%20Rossignoli!%20Sou%20de%20uma%20empresa%20e%20quero%20falar%20sobre%20servi%C3%A7os%20de%20munck%20(cadastro%20de%20fornecedor%20ou%20servi%C3%A7os%20recorrentes).%20(via%20site)" target="_blank" rel="noopener"><svg aria-hidden="true"><use href="#i-wa"/></svg>Falar com a Rossignoli</a>
+        <a class="btn btn-wa" data-ev="wa_empresas" href="https://wa.me/5535991912616?text=Ol%C3%A1%2C%20Rossignoli!%20Sou%20de%20uma%20empresa%20e%20quero%20falar%20sobre%20servi%C3%A7os%20de%20munck%20(cadastro%20de%20fornecedor%20ou%20servi%C3%A7os%20recorrentes)." target="_blank" rel="noopener"><svg aria-hidden="true"><use href="#i-wa"/></svg>Falar com a Rossignoli</a>
       </div>
     </div>
     <ul class="kit">
@@ -713,8 +713,12 @@ footer a{color:#EDE9E3}
 
   // Origem do contato (utm_source, ?o= ou site de onde veio), anexada à mensagem:
   // é assim que dá para saber quantos pedidos vieram do Google, do Instagram, do adesivo do caminhão...
-  var p=new URLSearchParams(location.search), origem=p.get('utm_source')||p.get('o');
-  if(!origem){ try{ origem=document.referrer?new URL(document.referrer).hostname.replace('www.',''):'direto'; }catch(e){ origem='direto'; } }
+  var p=new URLSearchParams(location.search), origem=null;
+  try{ origem=sessionStorage.getItem('origemRossignoli'); }catch(e){}
+  if(!origem){ origem=p.get('utm_source')||p.get('o');
+    if(!origem){ try{ var h=document.referrer?new URL(document.referrer).hostname.replace('www.',''):''; origem=h&&h.indexOf('rossignolilocacoes')<0?h:'direto'; }catch(e){ origem='direto'; } }
+    try{ sessionStorage.setItem('origemRossignoli',origem); }catch(e){} }
+  var ROT={gbp:'Perfil do Google',instagram:'Instagram','l.instagram.com':'Instagram',facebook:'Facebook','l.facebook.com':'Facebook','m.facebook.com':'Facebook','google.com':'Google','google.com.br':'Google','bing.com':'Bing'}, rotulo=ROT[origem]||origem;
 
   var form=document.getElementById('builder'), bubble=document.getElementById('bubble'), send=document.getElementById('send'), dock=document.getElementById('dock-wa');
   function val(n){ var el=form.elements[n]; return el && el.value ? el.value.trim() : ''; }
@@ -727,7 +731,7 @@ footer a{color:#EDE9E3}
     if(ci) l.push('• Cidade: '+ci);
     if(q) l.push('• Prazo: '+q);
     if(o) l.push('• Detalhe: '+o);
-    l.push('','Vou mandar foto do local e da carga.','(pedido via site · '+origem+')');
+    l.push('','Vou mandar foto do local e da carga.','(pedido via site · '+rotulo+')');
     var msg=l.join('\n');
     bubble.textContent=msg;
     send.href='https://wa.me/'+PHONE+'?text='+encodeURIComponent(msg);
@@ -770,6 +774,26 @@ footer a{color:#EDE9E3}
     if(a.dataset.ev==='wa_empresas') registra({carga:null,cidade:null,servico:'Empresa: cadastro de fornecedor / recorrente',mensagem:'Botão "Falar com a Rossignoli" da seção Para empresas'});
     track(a.dataset.ev);
   });
+})();
+</script>
+<script>
+// Origem do contato na mensagem do WhatsApp: guarda de onde a pessoa chegou (Perfil do Google, Instagram, Google...)
+// e acrescenta à mensagem, para quem atende saber o canal só de ler a primeira mensagem.
+(function(){
+  var ROT={gbp:'Perfil do Google','google_perfil':'Perfil do Google',instagram:'Instagram','l.instagram.com':'Instagram',facebook:'Facebook','l.facebook.com':'Facebook','m.facebook.com':'Facebook','google.com':'Google','google.com.br':'Google','bing.com':'Bing',direto:'direto'};
+  var o=null, p=new URLSearchParams(location.search);
+  try{ o=sessionStorage.getItem('origemRossignoli'); }catch(e){}
+  if(!o){ o=p.get('utm_source')||p.get('o');
+    if(!o){ try{ var h=document.referrer?new URL(document.referrer).hostname.replace('www.',''):''; o=h&&h.indexOf('rossignolilocacoes')<0?h:'direto'; }catch(e){ o='direto'; } }
+    try{ sessionStorage.setItem('origemRossignoli',o); }catch(e){} }
+  var rot=ROT[o]||o, pag=(document.querySelector('.crumbs')||{}).textContent;
+  pag=pag?pag.split('›').pop().trim():(location.pathname==='/'?'início':'site');
+  document.addEventListener('click',function(e){
+    var a=e.target.closest('a[href*="wa.me/"]'); if(!a||a.dataset.origem) return;
+    var u=new URL(a.href), t=u.searchParams.get('text')||'Olá, Rossignoli!'; if(/via site · [^)]* · /.test(t)) return;   // já tem o canal (montador da home)
+    t=/\(pedido via site · [^)]*\)/.test(t)?t.replace(/\(pedido via site · ([^)]*)\)/,'(pedido via site · $1 · '+rot+')'):t+'\n\n(via site · '+pag+' · '+rot+')';
+    u.searchParams.set('text',t); a.href=u.toString(); a.dataset.origem='1';
+  },true);
 })();
 </script>
 </body>
