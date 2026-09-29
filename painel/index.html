@@ -873,7 +873,7 @@ async function relatorios(){
       const PS=P.filter(p=>ORIGENS_SITE.includes(p.origem)), pc=PS.filter(p=>dentro(diaDe(p.criado_em),I.ini,I.fim)), pcA=PS.filter(p=>dentro(diaDe(p.criado_em),I.pIni,I.pFim));
       const pf=PS.filter(p=>p.status==='fechado'&&dentro(diaFech(p),I.ini,I.fim)), fatS=pf.reduce((t,p)=>t+Number(p.valor_fechado||0),0);
       const ultGA=SITE.sync.find(x=>x.fonte==='ga'), ultGSC=SITE.sync.find(x=>x.fonte==='gsc'), semConfig=!SITE.sync.some(x=>x.ok)&&SITE.sync.some(x=>x.fonte==='config');
-      const st=x=>!x?'<span class="mute">ainda não rodou</span>':x.ok?`<span class="sobe">ok</span> <span class="mute">${dth(x.em)}</span>`:`<span class="late">erro</span> <span class="mute">${dth(x.em)} · ${esc(x.detalhe||'')}</span>`;
+      const st=x=>!x?'<span class="mute">ainda não rodou</span>':x.ok?`<span class="sobe">ok</span> <span class="mute">${dth(x.em)}${x.linhas===0?' · o Google ainda está processando os primeiros dias (até 48 h)':''}</span>`:/has not been used|disabled/.test(x.detalhe||'')?`<span class="late">pendente</span> <span class="mute">falta ativar a API no Google Cloud</span>`:`<span class="late">erro</span> <span class="mute">${dth(x.em)} · ${esc(x.detalhe||'')}</span>`;
       const agrupaM=(L,k=x=>x.chave)=>{ const g={}; L.forEach(x=>{ const c=k(x)||'—', o=g[c]=g[c]||{}; for(const [n,v] of Object.entries(x.metricas)) o[n]=(o[n]||0)+Number(v); }); return g; };
       const txC=(o)=>{ const c=(o.whatsapp||0)+(o.ligar||0); return o.sessoes?Math.round(c/o.sessoes*1000)/10:null; };
       const canais=Object.entries(agrupaM(R('ga','canal',I.ini,I.fim))).map(([k,o])=>{ const [g,src]=k.split('|'); return [CANAIS_GA[g]||g,src,o.sessoes||0,o.whatsapp||0,o.ligar||0,txC(o)]; }).sort((a,b)=>b[2]-a[2]);
@@ -887,7 +887,7 @@ async function relatorios(){
       const buscas=Object.entries(agrupaM(R('gsc','busca',I.ini,I.fim))).map(([k,o])=>[k,o.cliques||0,o.impressoes||0,o.impressoes?Math.round(o.posicao_x_impr/o.impressoes*10)/10:null]).sort((a,b)=>b[2]-a[2]);
       const semanasGA=semanas(12,(s0,e)=>soma(S.filter(x=>x.fonte==='ga'&&x.relatorio==='total'&&dentro(x.data,s0,e)),'sessoes'));
       html=`<div class="card noprint" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span class="small">Google Analytics: ${st(ultGA)}</span><span class="small">Search Console: ${st(ultGSC)}</span><button class="btn sec" id="rSync" style="margin-left:auto">Atualizar agora</button></div>
-        ${semConfig?'<div class="aviso">A conexão com o Google ainda não foi concluída: falta cadastrar a chave da conta de serviço. Enquanto isso, os pedidos do site (abaixo) já aparecem, porque vêm do próprio painel.</div>':''}
+        ${semConfig?'<div class="aviso">A conexão com o Google ainda não trouxe dados. Os números chegam todo dia às 5h pelo Apps Script da conta Google da equipe; os pedidos do site (abaixo) já aparecem, porque vêm do próprio painel.</div>':''}
         <div class="kpis">${kpi(vis,'visitas ao site',visA,{num:vis,ant:visA})}${kpi(soma(tot,'usuarios'),'visitantes')}
           ${kpi(soma(tot,'whatsapp'),'cliques no WhatsApp',soma(totA,'whatsapp'),{num:soma(tot,'whatsapp'),ant:soma(totA,'whatsapp')})}${kpi(soma(tot,'ligar'),'cliques em Ligar',soma(totA,'ligar'),{num:soma(tot,'ligar'),ant:soma(totA,'ligar')})}
           ${kpi(vis?Math.round(cl/vis*1000)/10+'%':'—','das visitas clicaram para falar',visA?Math.round(clA/visA*1000)/10+'%':null,{num:vis?cl/vis:null,ant:visA?clA/visA:null})}

@@ -1,6 +1,8 @@
 // Busca no Google Analytics 4 e no Search Console os números diários do site e grava em public.site_metricas.
-// Autenticação: conta de serviço do Google (JSON no secret GOOGLE_SA_JSON), com acesso de Leitor no GA e no Search Console.
-// Chamada todo dia pelo pg_cron e pelo botão "Atualizar agora" dos Relatórios.
+// Autenticação, em ordem:
+//  1. google_token no corpo: token de acesso temporário enviado por um Google Apps Script na conta da equipe (dispara todo dia).
+//     O token é conferido no Google (escopos de leitura) e só serve se a conta tiver acesso à propriedade do Analytics.
+//  2. conta de serviço (JSON no secret GOOGLE_SA_JSON), se um dia for configurada.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const GA_PROPERTY = Deno.env.get("GA_PROPERTY_ID") ?? "556470824";
@@ -108,32 +110,37 @@ const registra = (fonte: string, ok: boolean, linhas: number | null, detalhe: st
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   const resp = (o: unknown) => new Response(JSON.stringify(o), { headers: { ...cors, "Content-Type": "application/json" } });
-  let pedido: { dias?: number; forcar?: boolean } = {};
+  let pedido: { dias?: number; forcar?: boolean; google_token?: string } = {};
   try { pedido = await req.json(); } catch { /* sem corpo */ }
 
   // evita chamadas repetidas: se sincronizou há menos de 15 min, só devolve o status
   const { data: ult } = await sb.from("site_sync").select("em").eq("ok", true).order("em", { ascending: false }).limit(1);
   if (!pedido.forcar && ult?.[0] && Date.now() - new Date(ult[0].em).getTime() < 15 * 6e4) return resp({ ok: true, pulou: "sincronizado há menos de 15 min" });
 
-  const bruto = Deno.env.get("GOOGLE_SA_JSON");
-  if (!bruto) {
-    await registra("config", false, null, "Falta a chave da conta de serviço (secret GOOGLE_SA_JSON).");
-    return resp({ ok: false, configurado: false });
+  let tokenPronto: string | null = null, conta = "";
+  if (pedido.google_token) {
+    const r = await fetch("https://oauth2.googleapis.com/tokeninfo?access_token=" + encodeURIComponent(pedido.google_token));
+    const info = await r.json();
+    const esc = String(info.scope ?? "");
+    if (!r.ok || !esc.includes("analytics.readonly")) return resp({ ok: false, erro: "token do Google inválido ou sem permissão de leitura do Analytics" });
+    tokenPronto = pedido.google_token; conta = info.email ?? "apps script";
   }
-  const sa = JSON.parse(bruto);
+  const bruto = Deno.env.get("GOOGLE_SA_JSON");
+  if (!tokenPronto && !bruto) return resp({ ok: false, configurado: false, msg: "Os números chegam todo dia de manhã pelo Apps Script da conta Google da equipe." });
+  const sa = bruto ? JSON.parse(bruto) : null;
   const dias = Math.min(Math.max(pedido.dias ?? 35, 3), 480);
   const ini = iso(new Date(Date.now() - dias * 864e5));
-  const saida: Record<string, unknown> = { conta: sa.client_email };
+  const saida: Record<string, unknown> = { conta: tokenPronto ? conta : sa.client_email };
   for (const [fonte, escopo, fn] of [
     ["ga", "https://www.googleapis.com/auth/analytics.readonly", sincronizaGA],
     ["gsc", "https://www.googleapis.com/auth/webmasters.readonly", sincronizaGSC],
   ] as const) {
     try {
       const mapa = new Map<string, Linha>();
-      const tk = await tokenGoogle(sa, [escopo]);
+      const tk = tokenPronto ?? await tokenGoogle(sa, [escopo]);
       const extra = await (fn as (t: string, i: string, m: Map<string, Linha>) => Promise<unknown>)(tk, ini, mapa);
       const n = await grava(mapa);
-      await registra(fonte, true, n, `${dias} dias${extra ? " · " + extra : ""}`);
+      await registra(fonte, true, n, `${dias} dias${extra ? " · " + extra : ""} · via ${tokenPronto ? "Apps Script (" + conta + ")" : "conta de serviço"}`);
       saida[fonte] = { ok: true, linhas: n };
     } catch (e) {
       await registra(fonte, false, null, String((e as Error).message).slice(0, 500));
