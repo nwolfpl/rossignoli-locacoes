@@ -397,6 +397,11 @@ function seloContato(c, longo){
   return `<span class="pill p-${contatoVelho(c)?'perdido':cls}" title="${esc(`Contato: ${rot}. Fonte: ${c.contato_fonte||'?'}${quando?', '+quando:''}.`)}">${esc(txt)}${contatoVelho(c)&&!longo?' (antigo)':''}</span>`;
 }
 
+// na lista, "a confirmar" é o normal e não precisa de etiqueta: só confirmado (verde) e problemas (vermelho)
+const seloCurto=c=>(c.contato_situacao||'a_confirmar')==='a_confirmar'&&!contatoVelho(c)?'':c.contato_situacao==='confirmado'?'<span class="pill p-ok" title="Contato confirmado em conversa">✓ confirmado</span>':seloContato(c);
+async function carregaEquipe(){ const {data}=await sb.from('equipe').select('nome,email,recebe_leads').order('nome');
+  OP.equipe=(data||[]).map(e=>[e.email,e.nome]); return (data||[]).filter(e=>e.recebe_leads!==false).map(e=>[e.email,e.nome]); }
+
 /* Vi uma obra: quem passa por um canteiro registra a construtora da placa e a obra vira conta com próximo passo hoje */
 const OBRAS = {
   construcao:['Construção de prédio ou casa','Construtoras e obras','Obra em andamento: laje, pré-moldados, estrutura metálica e caixa d\'água precisam de içamento.'],
@@ -487,9 +492,8 @@ function painel(titulo,html,rotuloOk,aoConfirmar){ // gaveta simples para açõe
 const POR_PAG=50;
 async function contas(){
   const v=$('#view');
-  const [{data:all,error},eq]=await Promise.all([sb.from('contas').select('*').order('pontuacao',{ascending:false,nullsFirst:false}).order('nome'),sb.from('equipe').select('nome,email,recebe_leads').order('nome'),carregaModelos()]); if(error) return toast(error.message);
-  OP.equipe=(eq.data||[]).map(e=>[e.email,e.nome]);
-  const VENDE=(eq.data||[]).filter(e=>e.recebe_leads!==false).map(e=>[e.email,e.nome]);   // quem recebe leads (equipe.recebe_leads)
+  const [{data:all,error},VENDE]=await Promise.all([sb.from('contas').select('*').order('pontuacao',{ascending:false,nullsFirst:false}).order('nome'),carregaEquipe(),carregaModelos()]); if(error) return toast(error.message);
+  // VENDE: quem recebe leads (equipe.recebe_leads)
   const DUP=duplicadas(all);
   const uniq=k=>[...new Set(all.map(c=>c[k]).filter(Boolean))].sort();
   let FC={}; try{ FC=JSON.parse(localStorage.getItem('fContas')||'{}'); }catch(e){}
@@ -544,7 +548,7 @@ async function contas(){
     const paginas=Math.max(1,Math.ceil(L.length/POR_PAG)); pag=Math.min(pag,paginas-1);
     const P=L.slice(pag*POR_PAG,(pag+1)*POR_PAG), todosPag=P.length&&P.every(c=>SEL.has(c.id));
     const nav=paginas>1?`<div class="pag"><button class="btn sec" data-p="${pag-1}" ${pag?'':'disabled'}>‹ Anterior</button><span class="small">página ${pag+1} de ${paginas}</span><button class="btn sec" data-p="${pag+1}" ${pag<paginas-1?'':'disabled'}>Próxima ›</button></div>`:'';
-    const selo=c=>(c.contato_situacao||'a_confirmar')==='a_confirmar'&&!contatoVelho(c)?'':c.contato_situacao==='confirmado'?'<span class="pill p-ok" title="Contato confirmado em conversa">✓ confirmado</span>':seloContato(c);
+    const selo=seloCurto;
     $('#lista').innerHTML=`<div class="count">${L.length} de ${all.length} contas${q?' · buscando em todas as vistas':''}${vista==='duplicadas'?' · marque 2 contas iguais e clique em "Juntar as 2"':''}</div><div class="tw"><table><thead><tr><th class="ck"><input type="checkbox" id="ckPag" ${todosPag?'checked':''} title="Marcar esta página"></th>${
       COLS.map(([k,l,cl])=>k?`<th class="sort${cl?' '+cl:''}" data-o="${k}">${l}${ord&&ord.k===k?(ord.d>0?' ▲':' ▼'):''}</th>`:`<th>${l}</th>`).join('')}</tr></thead><tbody>${
       P.map(c=>`<tr data-id="${c.id}"><td class="ck"><input type="checkbox" data-ck="${c.id}" ${SEL.has(c.id)?'checked':''}></td><td class="n"><b>${c.pontuacao??''}</b></td><td><b>${esc(c.nome)}</b> ${pill(c.prioridade)}${ehNova(c)?' <span class="pill p-novo">novo</span>':''}${c.tipo==='parceiro'?' <span class="pill">parceiro</span>':''}<br><span class="mute small">${esc(c.segmento)} · ${esc(origem(c))}${c.decisor_nome?` · decisor: ${esc(c.decisor_nome)}`:''}</span></td><td>${esc(c.cidade)}</td><td class="small" style="white-space:nowrap">${c.telefone?`<a href="tel:${dig(c.telefone)}" onclick="event.stopPropagation()">${esc(c.telefone)}</a>`:'<span class="late">pesquisar</span>'}<br>${selo(c)}</td><td>${pill(c.status,lab('conta_status',c.status))}${c.etapa?`<br><span class="mute small">etapa ${c.etapa}</span>`:''}</td><td class="small">${c.status==='descartada'?`<span class="mute">${esc(lab('descarte',c.descarte_motivo)||'')} ${dt(c.descartado_em)}</span>`:`${c.proximo_passo_em?`<span class="${c.proximo_passo_em<hoje()?'late':''}">${dt(c.proximo_passo_em)}</span> `:''}${esc(c.proximo_passo)}`}</td><td class="small mute">${esc(nomeResp(c.responsavel))}</td></tr>`).join('')||'<tr><td colspan="8" class="mute">Nada nesta vista.</td></tr>'
@@ -733,17 +737,16 @@ const META_DIA=15;
 async function fila(){
   const v=$('#view'); v.innerHTML='<p class="mute">Montando a fila…</p>';
   const h=hoje(), ini0=new Date(); ini0.setHours(0,0,0,0);
-  let minha=false; try{ minha=localStorage.getItem('filaMinha')==='1'; }catch(e){}
-  const dono=q=>minha?q.or(`responsavel.is.null,responsavel.eq.${EU}`):q;
   // busca um lote maior e filtra aqui, para os filtros responderem na hora
   const [a,b,p,feitos,semTel]=await Promise.all([
-    dono(sb.from('v_contas_canal').select('*').in('status',['a_contatar','contatado','proposta']).not('proximo_passo_em','is',null).lte('proximo_passo_em',h)).order('proximo_passo_em').order('pontuacao',{ascending:false}).limit(300),
-    dono(sb.from('v_contas_canal').select('*').eq('status','a_contatar').eq('etapa',0).is('proximo_passo_em',null).neq('canal_sugerido','pesquisar_telefone')).order('pontuacao',{ascending:false,nullsFirst:false}).limit(500),
+    sb.from('v_contas_canal').select('*').in('status',['a_contatar','contatado','proposta']).not('proximo_passo_em','is',null).lte('proximo_passo_em',h).order('proximo_passo_em').order('pontuacao',{ascending:false}).limit(400),
+    sb.from('v_contas_canal').select('*').eq('status','a_contatar').eq('etapa',0).is('proximo_passo_em',null).neq('canal_sugerido','pesquisar_telefone').order('pontuacao',{ascending:false,nullsFirst:false}).limit(1500),
     sb.from('pedidos').select('*').eq('status','novo').order('criado_em'),
     sb.from('atividades').select('conta_id').gte('feito_em',ini0.toISOString()).eq('feito_por',EU),
     sb.from('contas').select('id',{count:'exact',head:true}).eq('status','a_contatar').or('telefone.is.null,telefone.eq.'),
     carregaModelos()
   ]);
+  const VENDE=await carregaEquipe();
   const jaHoje=new Set((feitos.data||[]).map(x=>x.conta_id));
   const retorno=new Set((a.data||[]).map(c=>c.id));
   // retornos vencidos primeiro; depois contas novas de maior pontuação; some quem já foi trabalhado hoje
@@ -754,18 +757,19 @@ async function fila(){
   const sel=(id,rot,L)=>`<select class="in" id="${id}"><option value="">${rot}</option>${L.map(([k,t])=>`<option value="${esc(k)}">${esc(t)}</option>`).join('')}</select>`;
   v.innerHTML=`<div class="bar"><h2>Fila de hoje</h2>
       <div class="prog"><i id="progI"></i></div><span class="small" id="progT"></span>
-      <label class="small" style="display:flex;gap:6px;align-items:center;margin-left:auto"><input type="checkbox" id="minha" ${minha?'checked':''}> Só as minhas e sem dono</label><button class="btn sec" id="viObra">Vi uma obra</button></div>
+      <select class="in" id="fDono" style="width:auto;margin-left:auto" title="De quem são as contas da fila"><option value="eu">Minhas e sem responsável</option><option value="so">Só as minhas</option><option value="">De todos</option>${VENDE.filter(([e])=>e!==EU).map(([e,n])=>`<option value="${esc(e)}">De ${esc(n)}</option>`).join('')}</select><button class="btn sec" id="viObra">Vi uma obra</button></div>
     ${horaComercial()?'':'<div class="aviso">Fora do horário comercial (seg a sex, 8h–18h). Mensagem de prospecção agora costuma ser ignorada: prepare a fila e envie a partir das 8h.</div>'}
     ${P.length?`<h3 style="margin:6px 0 8px">Pedidos esperando resposta</h3>${P.map((x,i)=>`<div class="card pedido" data-p="${i}"><div class="bar" style="margin-bottom:4px"><h3 style="margin:0">${esc(x.nome||x.empresa||'Sem nome')}</h3><span class="late small">há ${idade(x.criado_em)}</span><span class="mute small">${esc(x.cidade||'')} · ${esc(x.servico||x.carga||'')} · ${esc(lab('origem',x.origem))}</span></div>
       ${x.mensagem?`<p class="small" style="margin:0 0 6px">${esc(x.mensagem.slice(0,220))}</p>`:''}<button class="btn" data-pa="${i}">Responder agora</button></div>`).join('')}`:''}
     <h3 style="margin:14px 0 8px">Prospecção</h3>
     <div class="chips" id="fTipo"></div>
+    <div class="chips" id="fCanalC" title="WhatsApp = número de celular; fixo só por ligação"></div>
     <details id="fBox" class="small" style="margin-bottom:10px"><summary style="cursor:pointer;margin-bottom:8px">Filtros <span id="fAtivos" class="mute"></span></summary>
     <div class="bar" style="gap:6px">
       <input class="in" id="fq" placeholder="Buscar empresa…" style="flex:1;min-width:160px">
       ${sel('fSeg','Todos os segmentos',uniq('segmento').map(x=>[x,x]))}
       ${sel('fCid','Todas as cidades',uniq('cidade').map(x=>[x,x]))}
-      ${sel('fCanal','WhatsApp ou ligação',[['whatsapp','Só WhatsApp (celular)'],['ligacao','Só ligação (fixo)']])}
+      ${sel('fOri','Todas as origens',[...ORIGENS.map(o=>o[0]),'Outras'].filter(o=>POOL.some(c=>origem(c)===o)).map(o=>[o,o]))}
       ${sel('fPri','Prioridade',[['A','A'],['B','B'],['C','C']])}
       <button class="btn sec" id="fLimpa">Limpar</button>
     </div></details>
@@ -773,35 +777,46 @@ async function fila(){
     <div id="filaL"></div>`;
   const TIPOS=[['','Tudo'],['retornos','Retornos vencidos'],['novas','Primeiro contato'],['decisor','Falar com decisor'],['semdec','Sem decisor ainda']];
   const noTipo=(t,c)=>t==='retornos'?retorno.has(c.id):t==='novas'?!retorno.has(c.id):t==='decisor'?!!c.decisor_nome:t==='semdec'?!c.decisor_nome:true;
-  const ids=['fq','fSeg','fCid','fCanal','fPri'];
+  const CANAIS=[['','Todos os canais'],['whatsapp','Tem WhatsApp'],['ligacao','Só ligação (fixo)']];
+  const ids=['fq','fSeg','fCid','fOri','fPri'];
   let FF={}; try{ FF=JSON.parse(localStorage.getItem('fFila')||'{}'); }catch(e){}
-  let tipo=FF.tipo||''; ids.forEach(k=>{ if(FF[k]!=null) $('#'+k).value=FF[k]; });
+  let tipo=FF.tipo||'', canal=FF.canal??FF.fCanal??''; ids.forEach(k=>{ if(FF[k]!=null) $('#'+k).value=FF[k]; });
+  let dono=FF.dono; if(dono==null){ let m=null; try{ m=localStorage.getItem('filaMinha'); }catch(e){} dono=m==='1'||(m==null&&VENDE.some(([e])=>e===EU))?'eu':''; }   // quem vende começa nas suas; o resto vê todas
+  $('#fDono').value=dono; if($('#fDono').value!==dono) $('#fDono').value=dono='eu';
+  const doDono=c=>dono==='eu'?!c.responsavel||c.responsavel===EU:dono==='so'?c.responsavel===EU:!dono||c.responsavel===dono;
   if(ids.some(k=>$('#'+k).value)) $('#fBox').open=true;
   const prog=()=>{ $('#progI').style.width=Math.min(100,jaHoje.size/META_DIA*100)+'%'; $('#progT').innerHTML=`<b>${jaHoje.size}</b> de ${META_DIA} contas trabalhadas hoje`; };
   const desenha=()=>{
-    const g=k=>$('#'+k).value; FF={tipo}; ids.forEach(k=>FF[k]=g(k)); try{ localStorage.setItem('fFila',JSON.stringify(FF)); }catch(e){}
+    const g=k=>$('#'+k).value; FF={tipo,canal,dono}; ids.forEach(k=>FF[k]=g(k)); try{ localStorage.setItem('fFila',JSON.stringify(FF)); }catch(e){}
     const q=g('fq').toLowerCase();
-    const base=POOL.filter(c=>(!q||c.nome.toLowerCase().includes(q))&&(!g('fSeg')||c.segmento===g('fSeg'))&&(!g('fCid')||c.cidade===g('fCid'))&&(!g('fCanal')||c.canal_sugerido===g('fCanal'))&&(!g('fPri')||c.prioridade===g('fPri')));
+    const base0=POOL.filter(c=>doDono(c)&&(!q||c.nome.toLowerCase().includes(q))&&(!g('fSeg')||c.segmento===g('fSeg'))&&(!g('fCid')||c.cidade===g('fCid'))&&(!g('fOri')||origem(c)===g('fOri'))&&(!g('fPri')||c.prioridade===g('fPri')));
+    const base=base0.filter(c=>!canal||c.canal_sugerido===canal);
+    $('#fCanalC').innerHTML=CANAIS.map(([k,t])=>`<button class="chip${k===canal?' on':''}" data-c="${k}">${k==='whatsapp'?'🟢 ':''}${t}<b>${base0.filter(c=>noTipo(tipo,c)&&(!k||c.canal_sugerido===k)).length}</b></button>`).join('');
     $('#fTipo').innerHTML=TIPOS.map(([k,t])=>`<button class="chip${k===tipo?' on':''}" data-t="${k}">${t}<b>${base.filter(c=>noTipo(k,c)).length}</b></button>`).join('');
     const todos=base.filter(c=>noTipo(tipo,c)), falta=Math.max(0,META_DIA-jaHoje.size), L=todos.slice(0,falta||5);
-    const filtrado=tipo||ids.some(k=>g(k)), nAt=ids.filter(k=>g(k)).length;
+    const filtrado=tipo||canal||ids.some(k=>g(k)), nAt=ids.filter(k=>g(k)).length;
     $('#fAtivos').textContent=nAt?`(${nAt} ativo${nAt>1?'s':''})`:'';
     $('#filaL').innerHTML=`<div class="count">${L.length?`Mostrando ${L.length} de ${todos.length}${filtrado?' com esses filtros':''}${falta?'':' · meta do dia batida, estes são extras'}`:''}</div>
     ${L.length?'':`<p class="mute">${filtrado?'Nada com esses filtros.':'Fila vazia por hoje.'}</p>`}
-    ${L.map((c,i)=>`<div class="card" data-i="${i}"><div class="bar" style="margin-bottom:6px"><h3 style="margin:0">${esc(c.nome)}</h3>${pill(c.prioridade)} <span class="pill">${c.pontuacao??''} pts</span> ${seloContato(c)} <span class="mute small">${esc(c.segmento||'')} · ${esc(c.cidade||'')} · etapa ${c.etapa||0}${c.proximo_passo?` · <span class="${c.proximo_passo_em&&c.proximo_passo_em<h?'late':''}">${esc(c.proximo_passo)}</span>`:''}</span>
-        <button class="btn sec" data-adia="${i}" style="margin-left:auto">Adiar 1 dia útil</button></div>
+    ${L.map((c,i)=>`<div class="card" data-i="${i}"><div class="bar" style="margin-bottom:6px"><h3 style="margin:0">${esc(c.nome)}</h3>${pill(c.prioridade)} <span class="pill">${c.pontuacao??''} pts</span> ${c.canal_sugerido==='whatsapp'?'<span class="pill p-ok" title="Celular: dá para mandar WhatsApp">WhatsApp</span>':''} ${seloCurto(c)} <span class="mute small">${esc(c.segmento||'')} · ${esc(c.cidade||'')} · ${esc(origem(c))} · etapa ${c.etapa||0}${c.responsavel&&c.responsavel!==EU?' · de '+esc(nomeResp(c.responsavel)):''}${c.proximo_passo?` · <span class="${c.proximo_passo_em&&c.proximo_passo_em<h?'late':''}">${esc(c.proximo_passo)}</span>`:''}</span>
+        <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">${c.responsavel?'':`<button class="btn sec" data-pego="${i}" title="Passa a conta para você">Ficar com ela</button>`}<select class="in" data-desc="${i}" style="width:auto"><option value="">Descartar…</option>${OP.descarte.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join('')}</select><button class="btn sec" data-adia="${i}">Adiar 1 dia útil</button></span></div>
       <p class="small mute" style="margin:0 0 6px">${esc(c.por_que_precisa||'')}${c.como_abordar?` <b>Abordagem:</b> ${esc(c.como_abordar)}`:''}</p>
       ${blocoContato(c)}</div>`).join('')}`;
     $('#filaL').querySelectorAll('.card[data-i]').forEach(card=>{ const c=L[card.dataset.i];
       ligaContato(card,c,()=>{ card.classList.add('feito'); jaHoje.add(c.id); prog(); });
       card.querySelector('[data-adia]').onclick=async()=>{ const {error}=await sb.from('contas').update({proximo_passo_em:diaUtil(1),proximo_passo:c.proximo_passo||'Primeiro contato'}).eq('id',c.id); if(error) return toast(error.message);
-        POOL.splice(POOL.indexOf(c),1); card.remove(); toast('Adiado para '+dt(diaUtil(1))); }; });
+        POOL.splice(POOL.indexOf(c),1); card.remove(); toast('Adiado para '+dt(diaUtil(1))); };
+      const pg=card.querySelector('[data-pego]'); if(pg) pg.onclick=async()=>{ const {error}=await sb.from('contas').update({responsavel:EU}).eq('id',c.id); if(error) return toast(error.message); c.responsavel=EU; pg.remove(); toast('A conta agora é sua'); };
+      card.querySelector('[data-desc]').onchange=async e=>{ const k=e.target.value; if(!k) return; if(!confirm(`Descartar ${c.nome} (${lab('descarte',k)})?`)){ e.target.value=''; return; }
+        const {error}=await sb.from('contas').update({status:'descartada',descarte_motivo:k}).eq('id',c.id); if(error) return toast(error.message);
+        POOL.splice(POOL.indexOf(c),1); card.remove(); toast('Conta descartada'); }; });
   };
   $('#fTipo').onclick=e=>{ const b=e.target.closest('[data-t]'); if(!b) return; tipo=b.dataset.t; desenha(); };
+  $('#fCanalC').onclick=e=>{ const b=e.target.closest('[data-c]'); if(!b) return; canal=b.dataset.c; desenha(); };
+  $('#fDono').onchange=e=>{ dono=e.target.value; desenha(); };
   ids.forEach(k=>$('#'+k)[k==='fq'?'oninput':'onchange']=desenha);
-  $('#fLimpa').onclick=()=>{ tipo=''; ids.forEach(k=>$('#'+k).value=''); desenha(); };
+  $('#fLimpa').onclick=()=>{ tipo=''; canal=''; ids.forEach(k=>$('#'+k).value=''); desenha(); };
   $('#viObra').onclick=()=>viUmaObra(fila);
-  $('#minha').onchange=e=>{ try{ localStorage.setItem('filaMinha',e.target.checked?'1':'0'); }catch(_){} fila(); };
   const st=$('#vSemTel'); if(st) st.onclick=()=>{ try{ const f=JSON.parse(localStorage.getItem('fContas')||'{}'); f.vista='semtel'; localStorage.setItem('fContas',JSON.stringify(f)); }catch(e){} };
   v.querySelectorAll('[data-pa]').forEach(bt=>bt.onclick=()=>abrePedido(P[bt.dataset.pa],fila));
   prog(); desenha();
