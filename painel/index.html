@@ -742,9 +742,32 @@ async function contas(){
 
 /* Relatórios: período com comparação, filtros por responsável e origem; tudo calculado aqui a partir das tabelas */
 const PERIODOS=[['semana','Esta semana'],['semana_ant','Semana passada'],['mes','Este mês'],['mes_ant','Mês passado'],['30','Últimos 30 dias'],['90','Últimos 90 dias'],['ano','Este ano'],['livre','Escolher datas']];
-const VISOES=[['geral','Visão geral'],['site','Site e Google'],['pedidos','Pedidos e vendas'],['prosp','Prospecção'],['carteira','Carteira e clientes'],['oper','Operação'],['presenca','Presença e mercado']];
+const VISOES=[['geral','Visão geral'],['site','Site e Google'],['canais','Canais e engajamento'],['pedidos','Pedidos e vendas'],['prosp','Prospecção'],['carteira','Carteira e clientes'],['oper','Operação'],['presenca','Presença e mercado']];
 const CANAIS_GA={'Organic Search':'Busca no Google','Direct':'Direto (digitou ou salvou)','Referral':'Outros sites','Organic Social':'Redes sociais','Paid Search':'Anúncio no Google','Paid Social':'Anúncio em rede social','Organic Maps':'Google Maps','Unassigned':'Não identificado','Email':'E-mail','Organic Video':'Vídeo'};
 const ORIGENS_SITE=['site','google_perfil','instagram'];
+const CANAIS=[['google_perfil','Perfil do Google'],['google_busca','Busca do Google'],['instagram','Instagram'],['facebook','Facebook'],['whatsapp_direto','WhatsApp direto'],['telefone','Telefone'],['indicacao','Indicação'],['olx','OLX'],['prospeccao','Prospecção'],['licitacao','Licitação'],['site','Site (direto)'],['outro','Outro']];
+// Espelho de public.canal_canonico(): o site grava a origem crua ('gbp',
+// 'l.instagram.com'), os pedidos usam a lista do painel e cada plataforma tem o
+// nome dela. Sem tradutor no meio, consolidar seria somar coisas diferentes.
+const canalCanonico=o=>{ o=String(o||'').trim().toLowerCase();
+  if(['gbp','google_perfil','google_maps'].includes(o)) return 'google_perfil';
+  if(/instagram/.test(o)) return 'instagram';
+  if(/facebook|^fb\./.test(o)) return 'facebook';
+  if(/google|bing|search/.test(o)) return 'google_busca';
+  if(/olx/.test(o)) return 'olx';
+  if(['whatsapp_direto','whatsapp'].includes(o)) return 'whatsapp_direto';
+  if(['indicacao','parceiro','cliente_antigo'].includes(o)) return 'indicacao';
+  if(['prospeccao','licitacao','telefone'].includes(o)) return o;
+  if(['','direto','site','(direct)'].includes(o)) return 'site';
+  return 'outro'; };
+const FONTE_DO_CANAL={google_perfil:'gbp',google_busca:'gsc',instagram:'instagram',facebook:'facebook'};
+const ALCANCE_CAMPO={gbp:'impressoes',gsc:'impressoes',instagram:'alcance',facebook:'alcance'};
+const ALCANCE_ROT={gbp:'aparições no Google',gsc:'aparições na busca',instagram:'contas alcançadas',facebook:'pessoas alcançadas'};
+let SES=null;   // cache das visitas por origem
+async function carregaSessoes(desde){
+  const L=[]; for(let i=0;;i+=1000){ const {data,error}=await sb.from('site_sessoes').select('iniciada_em,origem').gte('iniciada_em',desde).order('iniciada_em').range(i,i+999);
+    if(error){ toast(error.message); break; } L.push(...(data||[])); if(!data||data.length<1000) break; }
+  SES={desde,linhas:L}; }
 let SITE=null;   // cache das métricas do Google: {desde, linhas, sync}
 async function carregaSite(desde){
   const L=[]; for(let i=0;;i+=1000){ const {data,error}=await sb.from('site_metricas').select('data,fonte,relatorio,chave,metricas').gte('data',desde).order('data').range(i,i+999);
@@ -912,6 +935,101 @@ async function relatorios(){
         <p class="dica">Quem clica espera resposta rápida: nos horários com mais cliques, deixe alguém de olho no WhatsApp (meta: responder em até 5 min).</p>
         ${tabela('O que buscaram no Google antes de achar o site',[['Busca'],['Cliques',1],['Vezes que apareceu',1],['Posição média',1,x=>x==null?'—':x.toLocaleString('pt-BR')+'º']],buscas,{max:30,vazio:'Sem dados do Search Console no período.',dica:'Posição até 10 = primeira página do Google. Buscas com muita aparição e posição ruim são as que mais valem uma página ou texto novo.'})}`;
     }
+    if(visao==='canais'){
+      if(PAPEL!=='admin'){ html='<div class="card alerta"><h3>Área restrita</h3><p class="mute">O consolidado por canal cruza o comportamento no site com os pedidos, e por ora é exclusivo do administrador.</p></div>'; }
+      else {
+      const precisa=[I.pIni,iso(new Date(Date.now()-84*864e5))].sort()[0];
+      if(!SITE||SITE.desde>precisa){ $('#rOut').innerHTML=cab+'<p class="mute">Carregando os números dos canais…</p>'; carregaSite(precisa).then(desenha); return; }
+      if(!SES||SES.desde>precisa){ $('#rOut').innerHTML=cab+'<p class="mute">Carregando as visitas por canal…</p>'; carregaSessoes(precisa).then(desenha); return; }
+
+      const S=SITE.linhas;
+      const somaM=(L,k)=>L.reduce((t,x)=>t+Number(x.metricas[k]||0),0);
+      const R=(fonte,rel)=>S.filter(x=>x.fonte===fonte&&x.relatorio===rel&&dentro(x.data,I.ini,I.fim));
+
+      /* Visitas por canal saem da nossa própria tabela de sessões: ela guarda a
+         origem no vocabulário da casa (gbp, instagram), não na taxonomia do GA. */
+      const visitas={};
+      SES.linhas.filter(s=>dentro(diaDe(s.iniciada_em),I.ini,I.fim))
+        .forEach(s=>{ const c=canalCanonico(s.origem); visitas[c]=(visitas[c]||0)+1; });
+
+      const ped={}, fech={}, valor={};
+      P.filter(p=>dentro(diaDe(p.criado_em),I.ini,I.fim)).forEach(p=>{ const c=canalCanonico(p.origem); ped[c]=(ped[c]||0)+1; });
+      P.filter(p=>p.status==='fechado'&&dentro(diaFech(p),I.ini,I.fim)).forEach(p=>{ const c=canalCanonico(p.origem);
+        fech[c]=(fech[c]||0)+1; valor[c]=(valor[c]||0)+Number(p.valor_fechado||0); });
+
+      /* Alcance é a métrica nativa de cada plataforma — e é a única coluna que
+         NÃO pode ser somada entre canais. Por isso ela vem com a unidade junto. */
+      const manual={}; R('manual','canal').forEach(x=>{ const o=manual[x.chave]=manual[x.chave]||{};
+        for(const [n,v] of Object.entries(x.metricas)) o[n]=(o[n]||0)+Number(v); });
+      const alcanceDe=c=>{
+        const f=FONTE_DO_CANAL[c];
+        if(f){ const L=R(f,'total'); if(L.length) return [somaM(L,ALCANCE_CAMPO[f]),ALCANCE_ROT[f],false]; }
+        if(manual[c]&&manual[c].alcance) return [manual[c].alcance,'informado à mão',true];
+        return [null,f?'não conectado':'sem medição própria',false];
+      };
+
+      const linhas=CANAIS.map(([c,rot])=>{
+        const [alc,unid,eh_manual]=alcanceDe(c);
+        const inv=(manual[c]||{}).investido||0, np=ped[c]||0;
+        return {c,rot,alc,unid,eh_manual,vis:visitas[c]||0,ped:np,fech:fech[c]||0,val:valor[c]||0,inv,
+                cpp:inv&&np?inv/np:null};
+      }).filter(l=>l.alc!=null||l.vis||l.ped||l.inv)
+        .sort((a,b)=>b.ped-a.ped||b.vis-a.vis);
+
+      const tot={vis:0,ped:0,fech:0,val:0,inv:0};
+      linhas.forEach(l=>{ tot.vis+=l.vis; tot.ped+=l.ped; tot.fech+=l.fech; tot.val+=l.val; tot.inv+=l.inv; });
+
+      const ligado=f=>S.some(x=>x.fonte===f);
+      // Sem dica de "como ligar" é uma fonte que já está conectada e só não tem
+      // número no período; com dica, é uma fonte que ainda nem existe.
+      const selo=(f,nome,como)=>`<span class="small">${esc(nome)}: ${ligado(f)?'<span class="sobe">ligado</span>':`<span class="mute">${como?'não conectado — '+esc(como):'sem dados ainda'}</span>`}</span>`;
+
+      const fmtAlc=l=>l.alc==null?`<span class="mute">${esc(l.unid)}</span>`
+        :`${l.alc.toLocaleString('pt-BR')} <span class="mute">${esc(l.unid)}</span>${l.eh_manual?' <span class="pill tag">à mão</span>':''}`;
+
+      html=`<div class="card noprint" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+          ${selo('ga','Analytics','')}${selo('gsc','Search Console','')}
+          ${selo('gbp','Perfil do Google','falta liberar a API com o Google')}
+          ${selo('instagram','Instagram','falta criar a app no Meta')}
+          ${selo('facebook','Facebook','falta a Página e a app no Meta')}
+          <button class="btn sec" id="cLanc" style="margin-left:auto">Lançar canal sem API</button></div>
+
+        <div class="kpis">
+          <div class="kpi"><b>${tot.ped}</b><small>pedidos no período, somando todos os canais</small></div>
+          <div class="kpi"><b>${tot.fech}</b><small>fechados</small></div>
+          <div class="kpi"><b>${brl(tot.val)||'R$ 0'}</b><small>faturamento registrado</small></div>
+          <div class="kpi"><b>${tot.vis}</b><small>visitas ao site</small></div>
+          ${tot.inv?`<div class="kpi"><b>${brl(tot.inv)}</b><small>investido nos canais informados à mão</small></div>`:''}
+        </div>
+
+        <div class="card"><div class="bar" style="margin-bottom:6px"><h3 style="margin:0">Cada canal, do alcance ao dinheiro</h3></div>
+          <div class="tw"><table><thead><tr>
+            <th>Canal</th><th class="n">Alcance</th><th class="n">Visitas ao site</th>
+            <th class="n">Pedidos</th><th class="n">Fechados</th><th class="n">Faturado</th>
+            <th class="n">Investido</th><th class="n">Custo por pedido</th></tr></thead><tbody>
+            ${linhas.length?linhas.map(l=>`<tr style="cursor:default">
+              <td><b>${esc(l.rot)}</b></td>
+              <td class="n">${fmtAlc(l)}</td>
+              <td class="n">${l.vis||'—'}</td>
+              <td class="n">${l.ped||'—'}</td>
+              <td class="n">${l.fech||'—'}</td>
+              <td class="n">${l.val?brl(l.val):'—'}</td>
+              <td class="n">${l.inv?brl(l.inv):'—'}</td>
+              <td class="n">${l.cpp!=null?brl(l.cpp):'—'}</td></tr>`).join('')
+            :'<tr><td colspan="8" class="mute">Nenhum canal com movimento no período.</td></tr>'}
+          </tbody></table></div>
+          <p class="dica"><b>Só as colunas de pedidos para a direita podem ser comparadas entre canais.</b> Alcance é a métrica nativa de cada plataforma — uma conta alcançada no Instagram, uma aparição no Google e uma visita ao site são eventos diferentes e não se somam. Ela está aqui como contexto de quanta gente o canal tocou, não como placar.</p></div>
+
+        ${barras('Pedidos por canal',linhas.filter(l=>l.ped).map(l=>[l.rot,l.ped,l.fech?'· '+l.fech+' fechado'+(l.fech>1?'s':''):'']),x=>x,{vazio:'Nenhum pedido no período.'})}
+        ${barras('Visitas ao site por canal',linhas.filter(l=>l.vis).sort((a,b)=>b.vis-a.vis).map(l=>[l.rot,l.vis,'']),x=>x,{vazio:'Sem visitas registradas no período. O rastreamento começou em 29/09/2026.'})}
+
+        ${tabela('Lançamentos feitos à mão',[['Data'],['Canal'],['Alcance',1],['Cliques',1],['Investido',1,x=>x?brl(x):'—']],
+          R('manual','canal').sort((a,b)=>b.data.localeCompare(a.data))
+            .map(x=>[dt(x.data),(CANAIS.find(c=>c[0]===x.chave)||[,x.chave])[1],x.metricas.alcance||null,x.metricas.cliques||null,x.metricas.investido||null]),
+          {vazio:'Nada lançado à mão ainda. Use o botão acima para registrar OLX, adesivo do caminhão, panfleto ou indicação.',
+           dica:'Um lançamento por canal e por data; lançar de novo na mesma data corrige o anterior.'})}`;
+      }
+    }
     if(visao==='pedidos'){
       const cri=m.cri, cnt=s=>cri.filter(p=>p.status===s).length;
       const faixa=p=>{ const x=minutos(p); return x==null?'Sem resposta registrada':x<=5?'Até 5 min':x<=60?'5 a 60 min':x<=1440?'1 a 24 h':'Mais de 24 h'; };
@@ -986,6 +1104,7 @@ async function relatorios(){
       const csv='﻿'+[T.cols.map(c=>q(c[0])),...T.linhas.map(l=>l.map(q))].map(l=>l.join(';')).join('\n');
       const u=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})), el=document.createElement('a');
       el.href=u; el.download=`${T.titulo.replace(/[^\wÀ-ú ]+/g,'').trim().replace(/\s+/g,'-').toLowerCase()}-${I.ini}-a-${I.fim}.csv`; el.click(); setTimeout(()=>URL.revokeObjectURL(u),1000); });
+    const bLanc=$('#cLanc'); if(bLanc) bLanc.onclick=()=>abreLancamentoCanal(()=>{ SITE=null; desenha(); });
     const bs=$('#rSync'); if(bs) bs.onclick=async()=>{ bs.disabled=true; bs.textContent='Atualizando…';
       const {data,error}=await sb.functions.invoke('google-site-sync',{body:{forcar:true,dias:SITE&&SITE.sync.some(x=>x.ok)?35:480}});
       if(error) toast('Erro: '+error.message); else if(data&&data.configurado===false) toast('Falta cadastrar a chave da conta de serviço do Google');
@@ -1427,6 +1546,45 @@ function abreVisita(x){
   $('#visFecha').onclick=fecha;
   document.querySelector('.shade').onclick=fecha;
   $('#visFundo').onchange=e=>{ $('#visPassos').innerHTML=passos(e.target.checked); };
+}
+
+
+/* Lançamento de canal sem API: OLX, adesivo do caminhão, panfleto, indicação.
+   Vai para a mesma site_metricas com fonte 'manual', então cai no mesmo
+   relatório e não vira uma segunda fonte de verdade. */
+function abreLancamentoCanal(depois){
+  fecha();
+  const opcoes=CANAIS.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join('');
+  document.body.insertAdjacentHTML('beforeend',`<div class="shade"></div><aside class="drawer">
+    <h2>Lançar canal</h2>
+    <p class="small mute">Para canais que não têm API. O que você informar aqui entra no relatório marcado como <b>à mão</b>, para nunca se confundir com número medido.</p>
+    <div class="grid" style="margin-top:14px">
+      <label class="f full">Canal<select class="in" id="lcCanal">${opcoes}</select></label>
+      <label class="f full">Data de referência<input class="in" type="date" id="lcData" value="${hoje()}"></label>
+      <label class="f">Alcance<input class="in" type="number" min="0" id="lcAlcance" placeholder="quantas pessoas viram"></label>
+      <label class="f">Cliques ou contatos<input class="in" type="number" min="0" id="lcCliques" placeholder="quantos responderam"></label>
+      <label class="f full">Investido no período (R$)<input class="in" type="number" min="0" step="0.01" id="lcInvestido" placeholder="0,00"></label>
+    </div>
+    <p class="dica">Os pedidos e o faturamento desse canal o painel já calcula sozinho, a partir da origem dos pedidos — não precisa digitar.</p>
+  </aside>
+  <div class="actions"><button class="btn" id="lcSalva">Salvar</button><button class="btn sec" id="lcFecha">Cancelar</button></div>`);
+
+  $('#lcFecha').onclick=fecha;
+  document.querySelector('.shade').onclick=fecha;
+  $('#lcSalva').onclick=async()=>{
+    const canal=$('#lcCanal').value, data=$('#lcData').value;
+    if(!data) return toast('Escolha a data de referência.');
+    const num=id=>{ const v=Number($(id).value); return Number.isFinite(v)&&v>0?v:null; };
+    const metricas={};
+    const a=num('#lcAlcance'), c=num('#lcCliques'), i=num('#lcInvestido');
+    if(a!=null) metricas.alcance=a;
+    if(c!=null) metricas.cliques=c;
+    if(i!=null) metricas.investido=i;
+    if(!Object.keys(metricas).length) return toast('Informe ao menos um número.');
+    const {error}=await sb.from('site_metricas').upsert({data,fonte:'manual',relatorio:'canal',chave:canal,metricas},{onConflict:'data,fonte,relatorio,chave'});
+    if(error) return toast('Erro: '+error.message);
+    toast('Lançamento salvo'); fecha(); depois&&depois();
+  };
 }
 
 /* CSV com BOM, para o Excel em português abrir os acentos certos. */
