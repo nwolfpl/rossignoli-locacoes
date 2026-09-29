@@ -54,6 +54,8 @@ td.n{text-align:right;font-variant-numeric:tabular-nums}
 .pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600;background:var(--paper);white-space:nowrap}
 .p-novo,.p-a_contatar,.p-monitorar{background:#FDE7DA;color:var(--orange-deep)}
 .p-fechado,.p-cliente,.p-ganha{background:#DFF0E5;color:var(--ok)}
+.estrela{border:0;background:none;cursor:pointer;font-size:18px;line-height:1;padding:0 4px 0 0;color:#C9C2B8;vertical-align:-1px}.estrela.on{color:#E0A100}
+.pill.tag{background:#E8EEF7;color:#2F4A6D;font-weight:500}.pill.tag i{cursor:pointer;font-style:normal;margin-left:4px;opacity:.6}
 .p-descartada{background:#ECE8E1;color:#6B655E}
 .p-ok{background:#DFF0E5;color:var(--ok)}
 .massa{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--ink);color:#fff;border-radius:6px;padding:8px 10px;margin-bottom:8px}
@@ -449,7 +451,7 @@ function viUmaObra(depois){
 }
 
 /* Contas */
-const VISTAS=[['todas','Todas'],['hoje','Para hoje'],['chegou','Chegou hoje'],['novas','Novas (7 dias)'],['negociando','Em negociação'],['paradas','Paradas há +7 dias'],['semdono','Sem responsável'],['minhas','Minhas'],['revisar','Contato a revisar'],['semdec','Sem decisor'],['semtel','Sem telefone'],['duplicadas','Possíveis duplicadas'],['clientes','Clientes'],['descartadas','Descartadas']];
+const VISTAS=[['todas','Todas'],['favoritas','★ Favoritas'],['hoje','Para hoje'],['chegou','Chegou hoje'],['novas','Novas (7 dias)'],['negociando','Em negociação'],['paradas','Paradas há +7 dias'],['semdono','Sem responsável'],['minhas','Minhas'],['revisar','Contato a revisar'],['semdec','Sem decisor'],['semtel','Sem telefone'],['duplicadas','Possíveis duplicadas'],['clientes','Clientes'],['descartadas','Descartadas']];
 // cargas em lote (Receita, prospecção inicial) têm importado=true e não contam como novidade
 const ehNova=c=>!c.importado&&!!c.encontrado_em&&c.encontrado_em>=iso(new Date(Date.now()-7*864e5));
 const ABERTA=c=>['a_contatar','contatado','proposta'].includes(c.status);
@@ -457,6 +459,8 @@ const ABERTA=c=>['a_contatar','contatado','proposta'].includes(c.status);
 const ORIGENS=[['PNCP',/pncp/i],['Cemig',/cemig/i],['SEMAD',/semad/i],['Vi uma obra',/vi uma obra/i],['Receita',/receita/i],['Maps',/maps/i]];
 const origem=c=>(ORIGENS.find(([,r])=>r.test(c.fonte_lead||''))||[c.fonte_lead?'Outras':'Sem origem'])[0];
 const cnpjDe=c=>((c.observacoes||'').match(/CNPJ (\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})/)||[])[1];
+const TAGS_SUGERIDAS=['quente','visitar','indicação','licitação','grande porte','recorrente','orçamento pedido','parceiro'];
+const tagsHtml=c=>(c.tags||[]).map(t=>`<span class="pill tag">#${esc(t)}</span>`).join(' ');
 const nomeResp=e=>e?(OP.equipe.find(o=>o[0]===e)||[,e.split('@')[0]])[1]:'';
 function duplicadas(all){ // mesmo CNPJ ou mesmo telefone entre contas não descartadas
   const g={}, add=(k,c)=>{ if(k) (g[k]=g[k]||[]).push(c.id); };
@@ -476,8 +480,12 @@ const naVista=(k,c,DUP)=>{ const h=hoje(), d7=iso(new Date(Date.now()-7*864e5));
     :k==='semtel'?ABERTA(c)&&!c.telefone
     :k==='duplicadas'?!!DUP[c.id]
     :k==='minhas'?c.responsavel===EU
+    :k==='favoritas'?(c.favoritos||[]).includes(EU)
     :k==='clientes'?c.status==='cliente'
     :k==='descartadas'?false:true; };
+async function favorita(c,depois){ const on=!(c.favoritos||[]).includes(EU);
+  const {error}=await sb.rpc('favorita_conta',{conta:c.id,por:on}); if(error) return toast('Erro: '+error.message);
+  c.favoritos=on?[...(c.favoritos||[]),EU]:(c.favoritos||[]).filter(e=>e!==EU); toast(on?'★ Nas suas favoritas':'Tirada das favoritas'); depois&&depois(); }
 async function emLote(ids,dados){ // PostgREST aceita a lista no endereço: vai de 100 em 100
   for(let i=0;i<ids.length;i+=100){ const {error}=await sb.from('contas').update(dados).in('id',ids.slice(i,i+100)); if(error){ toast('Erro: '+error.message); return false; } }
   return true; }
@@ -504,18 +512,19 @@ async function contas(){
     <select class="in" id="fSeg"><option value="">Todos os segmentos</option>${uniq('segmento').map(s=>`<option>${esc(s)}</option>`).join('')}</select>
     <select class="in" id="fCid"><option value="">Todas as cidades</option>${uniq('cidade').map(s=>`<option>${esc(s)}</option>`).join('')}</select>
     <select class="in" id="fOri"><option value="">Todas as origens</option>${oris.map(o=>`<option>${esc(o)}</option>`).join('')}</select>
+    <select class="in" id="fTag"><option value="">Todas as etiquetas</option>${[...new Set(all.flatMap(c=>c.tags||[]))].sort().map(t=>`<option value="${esc(t)}">#${esc(t)}</option>`).join('')}</select>
     <select class="in" id="fPri"><option value="">Prioridade</option><option>A</option><option>B</option><option>C</option></select>
     <select class="in" id="fSt"><option value="">Todos os status</option>${OP.conta_status.map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('')}</select>
     <select class="in" id="fResp"><option value="">Todos os responsáveis</option><option value="-">Sem responsável</option>${OP.equipe.map(([e,n])=>`<option value="${esc(e)}">${esc(n)}</option>`).join('')}</select>
-    <button class="btn sec" id="dist">Distribuir</button><button class="btn sec" id="viObra">Vi uma obra</button><button class="btn" id="novo">+ Conta</button></div><div class="chips" id="vistas"></div><div id="massa"></div><div id="lista"></div>`;
-  const ids=['q','fSeg','fCid','fOri','fPri','fSt','fResp'];
+    <button class="btn sec" id="dist">Distribuir</button><button class="btn sec" id="viObra">Vi uma obra</button><button class="btn" id="novo">+ Conta</button></div><div class="chips" id="vistas"></div><div id="massa"></div><div id="lista"></div><datalist id="dlTags">${[...new Set([...all.flatMap(c=>c.tags||[]),...TAGS_SUGERIDAS])].sort().map(t=>`<option value="${esc(t)}">`).join('')}</datalist>`;
+  const ids=['q','fSeg','fCid','fOri','fTag','fPri','fSt','fResp'];
   ids.forEach(k=>{ if(FC[k]!=null) $('#'+k).value=FC[k]; });
   const COLS=[['pontuacao','Pts','n'],['nome','Empresa'],['cidade','Cidade'],[null,'Telefone'],['status','Status'],['proximo_passo_em','Próximo passo'],['responsavel','Resp.']];
   const cmp=(k,d)=>(a,b)=>{ const x=a[k], y=b[k]; if(x==null||x==='') return (y==null||y==='')?0:1; if(y==null||y==='') return -1;
     return (typeof x==='number'?x-y:String(x).localeCompare(String(y),'pt'))*d; };
   const filtra=()=>{
-    const q=$('#q').value.toLowerCase(), qd=dig(q), s=$('#fSeg').value, ci=$('#fCid').value, ori=$('#fOri').value, pr=$('#fPri').value, st=$('#fSt').value, rp=$('#fResp').value;
-    return all.filter(c=>(!q||c.nome.toLowerCase().includes(q)||(c.cidade||'').toLowerCase().includes(q)||(qd.length>3&&dig(c.telefone).includes(qd)))&&(!s||c.segmento===s)&&(!ci||c.cidade===ci)&&(!ori||origem(c)===ori)&&(!pr||c.prioridade===pr)&&(!st||c.status===st)&&(!rp||(rp==='-'?!c.responsavel:c.responsavel===rp)));
+    const q=$('#q').value.toLowerCase(), qd=dig(q), s=$('#fSeg').value, ci=$('#fCid').value, ori=$('#fOri').value, tg=$('#fTag').value, pr=$('#fPri').value, st=$('#fSt').value, rp=$('#fResp').value;
+    return all.filter(c=>(!q||c.nome.toLowerCase().includes(q)||(c.cidade||'').toLowerCase().includes(q)||(c.tags||[]).some(t=>t.toLowerCase().includes(q.replace(/^#/,'')))||(qd.length>3&&dig(c.telefone).includes(qd)))&&(!s||c.segmento===s)&&(!ci||c.cidade===ci)&&(!ori||origem(c)===ori)&&(!tg||(c.tags||[]).includes(tg))&&(!pr||c.prioridade===pr)&&(!st||c.status===st)&&(!rp||(rp==='-'?!c.responsavel:c.responsavel===rp)));
   };
   const massa=()=>{
     const m=$('#massa'); if(!SEL.size){ m.innerHTML=''; m.className=''; return; }
@@ -525,6 +534,7 @@ async function contas(){
       <select class="in" id="mPri"><option value="">Prioridade…</option><option>A</option><option>B</option><option>C</option></select>
       <input class="in" type="date" id="mData" value="${hoje()}"><input class="in" id="mPasso" placeholder="Próximo passo" style="width:160px"><button class="btn" id="mAgenda">Agendar</button>
       <select class="in" id="mDesc"><option value="">Descartar…</option>${OP.descarte.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join('')}</select>
+      <input class="in" id="mTag" list="dlTags" placeholder="Etiqueta" style="width:120px"><button class="btn" id="mTagMais" title="Pôr a etiqueta nas marcadas">+ Etiqueta</button><button class="btn sec" id="mTagMenos" title="Tirar a etiqueta das marcadas">− Etiqueta</button>
       ${SEL.size===2?'<button class="btn" id="mJunta">Juntar as 2</button>':''}
       <button class="btn sec" id="mLimpa" style="margin-left:auto">Limpar seleção</button>`;
     const aplica=async(dados,msg)=>{ if(!confirm(`${msg} em ${SEL.size} conta(s)?`)) return; if(await emLote([...SEL],dados)){ toast(`Feito em ${SEL.size} conta(s)`); contas(); } };
@@ -534,6 +544,10 @@ async function contas(){
     $('#mPri').onchange=e=>{ const p=e.target.value; if(p) aplica({prioridade:p},`Mudar prioridade para ${p}`); };
     $('#mAgenda').onclick=()=>{ const d=$('#mData').value, t=$('#mPasso').value.trim(); if(!d||!t) return toast('Informe a data e o próximo passo'); aplica({proximo_passo:t,proximo_passo_em:d},`Agendar "${t}" para ${dt(d)}`); };
     $('#mDesc').onchange=e=>{ const k=e.target.value; if(k) aplica({status:'descartada',descarte_motivo:k},`Descartar (${lab('descarte',k)})`); };
+    const etq=async por=>{ const t=$('#mTag').value.trim().toLowerCase(); if(!t) return toast('Escreva a etiqueta');
+      const {error}=await sb.rpc('etiqueta_contas',{ids:[...SEL],tag:t,por}); if(error) return toast('Erro: '+error.message);
+      toast(`#${t} ${por?'posta em':'tirada de'} ${SEL.size} conta(s)`); contas(); };
+    $('#mTagMais').onclick=()=>etq(true); $('#mTagMenos').onclick=()=>etq(false);
     $('#mJunta')&&($('#mJunta').onclick=()=>junta([...SEL].map(id=>all.find(c=>c.id===id))));
   };
   const desenha=()=>{
@@ -551,9 +565,10 @@ async function contas(){
     const selo=seloCurto;
     $('#lista').innerHTML=`<div class="count">${L.length} de ${all.length} contas${q?' · buscando em todas as vistas':''}${vista==='duplicadas'?' · marque 2 contas iguais e clique em "Juntar as 2"':''}</div><div class="tw"><table><thead><tr><th class="ck"><input type="checkbox" id="ckPag" ${todosPag?'checked':''} title="Marcar esta página"></th>${
       COLS.map(([k,l,cl])=>k?`<th class="sort${cl?' '+cl:''}" data-o="${k}">${l}${ord&&ord.k===k?(ord.d>0?' ▲':' ▼'):''}</th>`:`<th>${l}</th>`).join('')}</tr></thead><tbody>${
-      P.map(c=>`<tr data-id="${c.id}"><td class="ck"><input type="checkbox" data-ck="${c.id}" ${SEL.has(c.id)?'checked':''}></td><td class="n"><b>${c.pontuacao??''}</b></td><td><b>${esc(c.nome)}</b> ${pill(c.prioridade)}${ehNova(c)?' <span class="pill p-novo">novo</span>':''}${c.tipo==='parceiro'?' <span class="pill">parceiro</span>':''}<br><span class="mute small">${esc(c.segmento)} · ${esc(origem(c))}${c.decisor_nome?` · decisor: ${esc(c.decisor_nome)}`:''}</span></td><td>${esc(c.cidade)}</td><td class="small" style="white-space:nowrap">${c.telefone?`<a href="tel:${dig(c.telefone)}" onclick="event.stopPropagation()">${esc(c.telefone)}</a>`:'<span class="late">pesquisar</span>'}<br>${selo(c)}</td><td>${pill(c.status,lab('conta_status',c.status))}${c.etapa?`<br><span class="mute small">etapa ${c.etapa}</span>`:''}</td><td class="small">${c.status==='descartada'?`<span class="mute">${esc(lab('descarte',c.descarte_motivo)||'')} ${dt(c.descartado_em)}</span>`:`${c.proximo_passo_em?`<span class="${c.proximo_passo_em<hoje()?'late':''}">${dt(c.proximo_passo_em)}</span> `:''}${esc(c.proximo_passo)}`}</td><td class="small mute">${esc(nomeResp(c.responsavel))}</td></tr>`).join('')||'<tr><td colspan="8" class="mute">Nada nesta vista.</td></tr>'
+      P.map(c=>`<tr data-id="${c.id}"><td class="ck"><input type="checkbox" data-ck="${c.id}" ${SEL.has(c.id)?'checked':''}></td><td class="n"><b>${c.pontuacao??''}</b></td><td><button class="estrela${(c.favoritos||[]).includes(EU)?' on':''}" data-fav="${c.id}" title="Favorita (só para você)">${(c.favoritos||[]).includes(EU)?'★':'☆'}</button><b>${esc(c.nome)}</b> ${pill(c.prioridade)}${ehNova(c)?' <span class="pill p-novo">novo</span>':''}${c.tipo==='parceiro'?' <span class="pill">parceiro</span>':''} ${tagsHtml(c)}<br><span class="mute small">${esc(c.segmento)} · ${esc(origem(c))}${c.decisor_nome?` · decisor: ${esc(c.decisor_nome)}`:''}</span></td><td>${esc(c.cidade)}</td><td class="small" style="white-space:nowrap">${c.telefone?`<a href="tel:${dig(c.telefone)}" onclick="event.stopPropagation()">${esc(c.telefone)}</a>`:'<span class="late">pesquisar</span>'}<br>${selo(c)}</td><td>${pill(c.status,lab('conta_status',c.status))}${c.etapa?`<br><span class="mute small">etapa ${c.etapa}</span>`:''}</td><td class="small">${c.status==='descartada'?`<span class="mute">${esc(lab('descarte',c.descarte_motivo)||'')} ${dt(c.descartado_em)}</span>`:`${c.proximo_passo_em?`<span class="${c.proximo_passo_em<hoje()?'late':''}">${dt(c.proximo_passo_em)}</span> `:''}${esc(c.proximo_passo)}`}</td><td class="small mute">${esc(nomeResp(c.responsavel))}</td></tr>`).join('')||'<tr><td colspan="8" class="mute">Nada nesta vista.</td></tr>'
     }</tbody></table></div>${nav}`;
-    $('#lista tbody').onclick=e=>{ const ck=e.target.closest('[data-ck]');
+    $('#lista tbody').onclick=e=>{ const fv=e.target.closest('[data-fav]'); if(fv){ favorita(all.find(x=>x.id===fv.dataset.fav),desenha); return; }
+      const ck=e.target.closest('[data-ck]');
       if(ck){ ck.checked?SEL.add(ck.dataset.ck):SEL.delete(ck.dataset.ck); massa(); return; }
       if(e.target.closest('td.ck')) return;
       const tr=e.target.closest('tr[data-id]'); if(tr) abreConta(all.find(x=>x.id===tr.dataset.id)); };
@@ -610,12 +625,21 @@ async function contas(){
       <p class="small" style="margin:-4px 0 10px">Contato: ${seloContato(c,true)}</p>
       <div class="res" style="margin:0 0 10px;border:0;padding:0">${c.status==='descartada'
         ?`<span class="small">Descartada${c.descarte_motivo?' ('+esc(lab('descarte',c.descarte_motivo))+')':''} em ${dt(c.descartado_em)}.</span> <button class="btn sec" id="cReativa">Reativar</button>`
-        :`${c.responsavel!==EU?'<button class="btn sec" id="cPego">Ficar com ela</button>':''}<select class="in" id="cDesc"><option value="">Descartar…</option>${OP.descarte.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join('')}</select>`}</div>
+        :`<button class="btn sec" id="cFav">${(c.favoritos||[]).includes(EU)?'★ Favorita':'☆ Favoritar'}</button>${c.responsavel!==EU?'<button class="btn sec" id="cPego">Ficar com ela</button>':''}<select class="in" id="cDesc"><option value="">Descartar…</option>${OP.descarte.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join('')}</select>`}</div>
+      <div class="res" id="cTags" style="margin:0 0 10px;border:0;padding:0"></div>
       ${c.por_que_precisa||c.como_abordar?`<div class="card small"><b>Por que precisa:</b> ${esc(c.por_que_precisa||'—')}<br><b>Como abordar:</b> ${esc(c.como_abordar||'—')}</div>`:''}
       <div class="card">${blocoContato(c,true)}</div>
       <div class="hist"><h3>Histórico</h3><ul id="lAt"><li class="mute">Carregando…</li></ul></div>`;
     const d=gaveta('contas',c,c.nome,recarrega,'',{topo,recolhido:true,semApagar:true});
     const muda=async(dados,msg)=>{ const {error}=await sb.from('contas').update(dados).eq('id',c.id); if(error) return toast('Erro: '+error.message); toast(msg); fecha(); contas(); };
+    const tagsGaveta=()=>{ $('#cTags').innerHTML=`<span class="small mute">Etiquetas:</span> ${(c.tags||[]).map(t=>`<span class="pill tag">#${esc(t)}<i data-tira="${esc(t)}" title="Tirar">×</i></span>`).join(' ')}<input class="in" id="cTag" list="dlTags" placeholder="nova etiqueta" style="width:140px"><button class="btn sec" id="cTagOk">Pôr</button>`;
+      const poe=async()=>{ const t=$('#cTag').value.trim().toLowerCase(); if(!t) return; const {error}=await sb.rpc('etiqueta_contas',{ids:[c.id],tag:t,por:true}); if(error) return toast('Erro: '+error.message);
+        c.tags=[...new Set([...(c.tags||[]),t])].sort(); tagsGaveta(); desenha(); };
+      $('#cTagOk').onclick=poe; $('#cTag').onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); poe(); } };
+      $('#cTags').querySelectorAll('[data-tira]').forEach(x=>x.onclick=async()=>{ const t=x.dataset.tira; const {error}=await sb.rpc('etiqueta_contas',{ids:[c.id],tag:t,por:false}); if(error) return toast('Erro: '+error.message);
+        c.tags=(c.tags||[]).filter(y=>y!==t); tagsGaveta(); desenha(); }); };
+    tagsGaveta();
+    $('#cFav')&&($('#cFav').onclick=()=>favorita(c,()=>{ $('#cFav').textContent=(c.favoritos||[]).includes(EU)?'★ Favorita':'☆ Favoritar'; desenha(); }));
     $('#cReativa')&&($('#cReativa').onclick=()=>muda({status:'a_contatar'},'Conta reativada'));
     $('#cPego')&&($('#cPego').onclick=()=>muda({responsavel:EU},'A conta agora é sua'));
     $('#cDesc')&&($('#cDesc').onchange=e=>{ const k=e.target.value; if(k&&confirm(`Descartar ${c.nome} (${lab('descarte',k)})?`)) muda({status:'descartada',descarte_motivo:k},'Conta descartada'); else e.target.value=''; });
@@ -798,7 +822,7 @@ async function fila(){
     $('#fAtivos').textContent=nAt?`(${nAt} ativo${nAt>1?'s':''})`:'';
     $('#filaL').innerHTML=`<div class="count">${L.length?`Mostrando ${L.length} de ${todos.length}${filtrado?' com esses filtros':''}${falta?'':' · meta do dia batida, estes são extras'}`:''}</div>
     ${L.length?'':`<p class="mute">${filtrado?'Nada com esses filtros.':'Fila vazia por hoje.'}</p>`}
-    ${L.map((c,i)=>`<div class="card" data-i="${i}"><div class="bar" style="margin-bottom:6px"><h3 style="margin:0">${esc(c.nome)}</h3>${pill(c.prioridade)} <span class="pill">${c.pontuacao??''} pts</span> ${c.canal_sugerido==='whatsapp'?'<span class="pill p-ok" title="Celular: dá para mandar WhatsApp">WhatsApp</span>':''} ${seloCurto(c)} <span class="mute small">${esc(c.segmento||'')} · ${esc(c.cidade||'')} · ${esc(origem(c))} · etapa ${c.etapa||0}${c.responsavel&&c.responsavel!==EU?' · de '+esc(nomeResp(c.responsavel)):''}${c.proximo_passo?` · <span class="${c.proximo_passo_em&&c.proximo_passo_em<h?'late':''}">${esc(c.proximo_passo)}</span>`:''}</span>
+    ${L.map((c,i)=>`<div class="card" data-i="${i}"><div class="bar" style="margin-bottom:6px"><h3 style="margin:0">${(c.favoritos||[]).includes(EU)?'<span style="color:#E0A100">★</span> ':''}${esc(c.nome)}</h3>${pill(c.prioridade)} <span class="pill">${c.pontuacao??''} pts</span> ${tagsHtml(c)} ${c.canal_sugerido==='whatsapp'?'<span class="pill p-ok" title="Celular: dá para mandar WhatsApp">WhatsApp</span>':''} ${seloCurto(c)} <span class="mute small">${esc(c.segmento||'')} · ${esc(c.cidade||'')} · ${esc(origem(c))} · etapa ${c.etapa||0}${c.responsavel&&c.responsavel!==EU?' · de '+esc(nomeResp(c.responsavel)):''}${c.proximo_passo?` · <span class="${c.proximo_passo_em&&c.proximo_passo_em<h?'late':''}">${esc(c.proximo_passo)}</span>`:''}</span>
         <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">${c.responsavel?'':`<button class="btn sec" data-pego="${i}" title="Passa a conta para você">Ficar com ela</button>`}<select class="in" data-desc="${i}" style="width:auto"><option value="">Descartar…</option>${OP.descarte.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join('')}</select><button class="btn sec" data-adia="${i}">Adiar 1 dia útil</button></span></div>
       <p class="small mute" style="margin:0 0 6px">${esc(c.por_que_precisa||'')}${c.como_abordar?` <b>Abordagem:</b> ${esc(c.como_abordar)}`:''}</p>
       ${blocoContato(c)}</div>`).join('')}`;
