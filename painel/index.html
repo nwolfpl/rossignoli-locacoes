@@ -151,6 +151,7 @@ const saudacao = () => { const h=new Date().getHours(); return h<12?'Bom dia':h<
 const dig = t => String(t||'').replace(/\D/g,'');
 const ehCel = t => /^\d{2}9\d{8}$/.test(dig(t));
 let EU = '';
+let PAPEL = 'equipe';   // 'admin' libera as áreas exclusivas do dono
 function toast(t){ const d=document.createElement('div'); d.className='toast'; d.textContent=t; document.body.appendChild(d); setTimeout(()=>d.remove(),2200); }
 const pill = (v,lab) => v ? `<span class="pill p-${esc(v)}">${esc(lab||v.replace(/_/g,' '))}</span>` : '';
 
@@ -314,15 +315,18 @@ function gaveta(tab,reg,titulo,depois,extraHtml='',o={}){
 function fecha(){ document.querySelectorAll('.shade,.drawer,.actions').forEach(e=>e.remove()); }
 
 /* ---------- Abas ---------- */
-const ABAS = [['resumo','Resumo'],['fila','Fila de hoje'],['pedidos','Pedidos'],['agenda','Agenda'],['avaliacoes','Avaliações'],['contas','Contas'],['licitacoes','Licitações'],['relatorios','Relatórios'],['concorrencia','Concorrência'],['ranking','Posição no Maps'],['inteligencia','Inteligência'],['backlog','Plano de ação'],['modelos','Mensagens']];
+const ABAS = [['resumo','Resumo'],['fila','Fila de hoje'],['pedidos','Pedidos'],['agenda','Agenda'],['avaliacoes','Avaliações'],['contas','Contas'],['licitacoes','Licitações'],['relatorios','Relatórios'],['visitantes','Visitantes'],['concorrencia','Concorrência'],['ranking','Posição no Maps'],['inteligencia','Inteligência'],['backlog','Plano de ação'],['modelos','Mensagens']];
 let aba = (location.hash.slice(1) || 'resumo');
 // ordem de uso: o que se faz todo dia, onde estão os clientes, como está indo, e o que se ajusta de vez em quando
-const GRUPOS = [['Dia a dia',['resumo','fila','pedidos','agenda','avaliacoes']],['Clientes',['contas','licitacoes']],['Resultados',['relatorios','concorrencia','ranking','inteligencia']],['Ajustes',['backlog','modelos']]];
+const GRUPOS = [['Dia a dia',['resumo','fila','pedidos','agenda','avaliacoes']],['Clientes',['contas','licitacoes']],['Resultados',['relatorios','visitantes','concorrencia','ranking','inteligencia']],['Ajustes',['backlog','modelos']]];
+const SO_ADMIN=['visitantes'];
+const podeVer=k=>!SO_ADMIN.includes(k)||PAPEL==='admin';
 function tabs(){ const nome=Object.fromEntries(ABAS), usadas=GRUPOS.flatMap(g=>g[1]), resto=ABAS.map(a=>a[0]).filter(k=>!usadas.includes(k));
-  const G=resto.length?[...GRUPOS,['Outros',resto]]:GRUPOS;
-  $('#tabs').innerHTML = G.map(([g,ks])=>`<div class="tg"><span>${g}</span><div>${ks.filter(k=>nome[k]).map(k=>`<button data-k="${k}" class="${k===aba?'on':''}">${nome[k]}</button>`).join('')}</div></div>`).join(''); }
+  const G=(resto.length?[...GRUPOS,['Outros',resto]]:GRUPOS)
+    .map(([g,ks])=>[g,ks.filter(k=>nome[k]&&podeVer(k))]).filter(([,ks])=>ks.length);
+  $('#tabs').innerHTML = G.map(([g,ks])=>`<div class="tg"><span>${g}</span><div>${ks.map(k=>`<button data-k="${k}" class="${k===aba?'on':''}">${nome[k]}</button>`).join('')}</div></div>`).join(''); }
 $('#tabs').onclick = e => { const b=e.target.closest('button'); if(!b) return; aba=b.dataset.k; location.hash=aba; render(); };
-function render(){ fecha(); $('#view').onclick=null; tabs(); ({resumo,relatorios,backlog,fila,pedidos,contas,concorrencia,agenda,avaliacoes,licitacoes,ranking,inteligencia,modelos}[aba]||resumo)(); }
+function render(){ fecha(); $('#view').onclick=null; tabs(); ({resumo,relatorios,visitantes,backlog,fila,pedidos,contas,concorrencia,agenda,avaliacoes,licitacoes,ranking,inteligencia,modelos}[aba]||resumo)(); }
 
 /* Resumo */
 async function resumo(){
@@ -1220,6 +1224,221 @@ const modelos=()=>simples('modelos_mensagem','Modelos de mensagem','etapa',true,
   [['Etapa',r=>r.etapa],['Canal',r=>esc(lab('canal',r.canal))],['Nome',r=>`<b>${esc(r.nome)}</b>`],['Segmento',r=>esc(r.segmento||'Todos')],['Texto',r=>`<span class="small">${esc(r.texto.slice(0,160))}…</span>`],['Ativo',r=>r.ativo?'sim':'não']],
   ()=>({etapa:1,canal:'whatsapp',ativo:true}), r=>r.nome);
 
+
+/* ---------- Visitantes: comportamento no site ----------
+   O Google Analytics diz quantos. Esta aba diz o quê: a sequência de passos de
+   cada visita, e principalmente quem começou a montar um orçamento e não enviou.
+   Restrita ao administrador — o banco recusa a leitura para o resto da equipe. */
+const VIS_PERIODOS=[[1,'Hoje'],[7,'7 dias'],[30,'30 dias'],[90,'90 dias']];
+let VIS_DIAS=7, VIS_DADOS=null;
+/* Laranja da marca e um azul: o par passa na checagem de daltonismo, que o
+   laranja com o verde do painel não passava (vermelho e verde se confundem). */
+const VIS_COR={visitas:'#CE581A',contatos:'#3F6EA8'};
+const VIS_ROT={sessao_inicio:'Entrou no site',pagina_vista:'Viu a página',rolagem:'Rolou a página',pulso:'Continuou na página',saida_pagina:'Saiu da página',whatsapp_clique:'Clicou no WhatsApp',telefone_clique:'Clicou no telefone',email_clique:'Clicou no e-mail',cta_clique:'Clicou no botão',link_externo:'Saiu para um link externo',orcamento_iniciado:'Começou a montar o orçamento',orcamento_campo:'Preencheu o orçamento',duvida_abriu:'Abriu uma dúvida'};
+/* Ruído de fundo: mede tempo e leitura, mas polui a linha do tempo. */
+const VIS_FUNDO={pulso:1,rolagem:1,saida_pagina:1};
+const visEvRot=n=>VIS_ROT[n]||n;
+const visSegs=s=>s<=0?'0s':s<60?Math.round(s)+'s':s<3600?Math.floor(s/60)+'min '+Math.round(s%60)+'s':Math.floor(s/3600)+'h '+Math.round(s%3600/60)+'min';
+const visMediana=a=>{ if(!a.length) return 0; const o=[...a].sort((x,y)=>x-y), m=o.length>>1; return o.length%2?o[m]:(o[m-1]+o[m])/2; };
+const visContaPor=(itens,f)=>{ const m=new Map(); itens.forEach(i=>{ const k=f(i); if(k) m.set(k,(m.get(k)||0)+1); }); return [...m].map(([rotulo,total])=>({rotulo,total})).sort((a,b)=>b.total-a.total); };
+const visBarras=(linhas,lim)=>{ const L=linhas.slice(0,lim||8); if(!L.length) return '<p class="mute">Sem dados no período.</p>';
+  const max=Math.max(1,...L.map(l=>l.total));
+  return `<div class="bars">${L.map(l=>`<div class="brow"><span title="${esc(l.rotulo)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l.rotulo)}</span><i style="width:${Math.max(l.total/max*100,2)}%"></i><span class="n">${l.total}</span></div>`).join('')}</div>`; };
+
+async function visitantes(){
+  const v=$('#view');
+  if(PAPEL!=='admin'){
+    v.innerHTML='<div class="card alerta"><h3>Área restrita</h3><p class="mute">O rastreamento de visitantes é exclusivo do administrador. O banco também recusa a leitura, então não adianta insistir por aqui.</p></div>';
+    return;
+  }
+  v.innerHTML='<p class="mute">Carregando…</p>';
+
+  const desde=new Date(Date.now()-VIS_DIAS*864e5).toISOString();
+  const [ev,se]=await Promise.all([
+    sb.from('site_eventos').select('*').gte('criado_em',desde).order('criado_em',{ascending:false}).limit(20000),
+    sb.from('site_sessoes').select('*').gte('iniciada_em',desde).order('iniciada_em',{ascending:false}).limit(20000)
+  ]);
+  if(ev.error||se.error){ v.innerHTML=`<div class="card alerta"><h3>Não deu para carregar</h3><p class="mute">${esc((ev.error||se.error).message)}</p></div>`; return; }
+
+  const E=ev.data||[], S=se.data||[];
+  VIS_DADOS={E,S};
+
+  /* Agrupa por visita: quase tudo que interessa é por sessão, não por evento. */
+  const porSessao=new Map();
+  E.forEach(e=>{ if(!porSessao.has(e.sessao_id)) porSessao.set(e.sessao_id,[]); porSessao.get(e.sessao_id).push(e); });
+  porSessao.forEach(l=>l.sort((a,b)=>new Date(a.criado_em)-new Date(b.criado_em)));
+
+  const infoSessao=new Map(S.map(s=>[s.id,s]));
+  const temNome=(l,n)=>l.some(e=>e.nome===n);
+  const visDuracao=l=>l.length<2?0:(new Date(l[l.length-1].criado_em)-new Date(l[0].criado_em))/1000;
+
+  const visitas=[...porSessao.entries()].map(([id,l])=>({
+    id, eventos:l, sessao:infoSessao.get(id)||null, visitante:l[0].visitante_id,
+    inicio:l[0].criado_em, fim:l[l.length-1].criado_em, duracao:visDuracao(l),
+    paginas:l.filter(e=>e.nome==='pagina_vista').length,
+    contatou:temNome(l,'whatsapp_clique')||temNome(l,'telefone_clique'),
+    comecou:temNome(l,'orcamento_iniciado')
+  })).sort((a,b)=>new Date(b.fim)-new Date(a.fim));
+
+  const nVisitantes=new Set([...S.map(s=>s.visitante_id),...E.map(e=>e.visitante_id)]).size;
+  const nContato=visitas.filter(x=>x.contatou).length;
+  const nComecou=visitas.filter(x=>x.comecou).length;
+  const abandonos=visitas.filter(x=>x.comecou&&!x.contatou);
+  const umaPagina=visitas.filter(x=>x.paginas<=1).length;
+
+  /* Série diária contínua: dia sem visita é zero, não buraco. */
+  const dias=[];
+  for(let i=VIS_DIAS-1;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); dias.push({dia:iso(d),visitas:0,contatos:0}); }
+  const porDia=new Map(dias.map(d=>[d.dia,d]));
+  const sessoesDoDia=new Map();
+  E.forEach(e=>{ const k=iso(new Date(e.criado_em)), d=porDia.get(k); if(!d) return;
+    if(!sessoesDoDia.has(k)) sessoesDoDia.set(k,new Set());
+    sessoesDoDia.get(k).add(e.sessao_id);
+    if(e.nome==='whatsapp_clique'||e.nome==='telefone_clique') d.contatos++; });
+  sessoesDoDia.forEach((s,k)=>{ porDia.get(k).visitas=s.size; });
+
+  /* Funil por visita: interessa quantas avançaram, não quantos cliques houve. */
+  const leu=visitas.filter(x=>x.eventos.some(e=>e.nome==='rolagem'&&Number(e.valor)>=50)).length;
+  const funil=[['Entrou no site',visitas.length],['Leu metade da página',leu],['Começou o orçamento',nComecou],['Pediu contato',nContato]];
+  const topo=visitas.length||1;
+
+  const cta=visContaPor(E.filter(e=>e.nome==='cta_clique'||e.nome==='whatsapp_clique'),e=>e.rotulo);
+  const duvidas=visContaPor(E.filter(e=>e.nome==='duvida_abriu'),e=>e.rotulo);
+  const paginas=visContaPor(E.filter(e=>e.nome==='pagina_vista'),e=>e.caminho);
+  const origens=visContaPor(S,s=>s.origem);
+  const aparelhos=visContaPor(S,s=>s.dispositivo);
+
+  const W=720,H=180,PL=34,PR=22,PB=22,PT=12;
+  const maxY=Math.max(5,...dias.map(d=>Math.max(d.visitas,d.contatos)));
+  const px=i=>PL+(dias.length<=1?(W-PL-PR)/2:i/(dias.length-1)*(W-PL-PR));
+  const py=n=>PT+(H-PT-PB)-(n/maxY)*(H-PT-PB);
+  const linha=k=>dias.map((d,i)=>`${px(i)},${py(d[k])}`).join(' ');
+  const cada=Math.max(1,Math.ceil(dias.length/6));
+  const grafico=`
+    <div style="display:flex;gap:16px;margin-bottom:8px">
+      <span class="small mute"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${VIS_COR.visitas};vertical-align:-1px"></span> Visitas</span>
+      <span class="small mute"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${VIS_COR.contatos};vertical-align:-1px"></span> Pedidos de contato</span>
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%" role="img" aria-label="Visitas e pedidos de contato por dia">
+      ${[0,maxY/2,maxY].map(t=>`<line x1="${PL}" x2="${W-PR}" y1="${py(t)}" y2="${py(t)}" stroke="#DCD6CD" stroke-width="1"/><text x="${PL-6}" y="${py(t)+4}" text-anchor="end" font-size="10" fill="#6E6861">${Math.round(t)}</text>`).join('')}
+      ${dias.map((d,i)=>i%cada===0||i===dias.length-1?`<text x="${px(i)}" y="${H-6}" text-anchor="${i===0?'start':i===dias.length-1?'end':'middle'}" font-size="10" fill="#6E6861">${d.dia.slice(8)}/${d.dia.slice(5,7)}</text>`:'').join('')}
+      <polyline points="${linha('visitas')}" fill="none" stroke="${VIS_COR.visitas}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <polyline points="${linha('contatos')}" fill="none" stroke="${VIS_COR.contatos}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      ${dias.map((d,i)=>`<g><title>${d.dia.slice(8)}/${d.dia.slice(5,7)} · ${d.visitas} visita(s) · ${d.contatos} contato(s)</title><circle cx="${px(i)}" cy="${py(d.visitas)}" r="4" fill="${VIS_COR.visitas}" stroke="#fff" stroke-width="2"/><circle cx="${px(i)}" cy="${py(d.contatos)}" r="4" fill="${VIS_COR.contatos}" stroke="#fff" stroke-width="2"/><rect x="${px(i)-10}" y="${PT}" width="20" height="${H-PT-PB}" fill="transparent"/></g>`).join('')}
+    </svg>`;
+
+  v.innerHTML=`
+  <div class="bar"><h2>Visitantes</h2>
+    ${VIS_PERIODOS.map(([d,l])=>`<button class="chip ${d===VIS_DIAS?'on':''}" data-dias="${d}">${l}</button>`).join('')}
+    <button class="btn sec" id="visCsv">Baixar eventos</button>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><b>${nVisitantes}</b><small>pessoas diferentes</small></div>
+    <div class="kpi"><b>${visitas.length}</b><small>visitas</small></div>
+    <div class="kpi"><b>${E.filter(e=>e.nome==='pagina_vista').length}</b><small>páginas vistas</small></div>
+    <div class="kpi"><b>${nContato}</b><small>visitas que pediram contato</small></div>
+    <div class="kpi"><b>${visitas.length?Math.round(nContato/visitas.length*100):0}%</b><small>taxa de contato</small></div>
+    <div class="kpi"><b>${abandonos.length}</b><small>começaram o orçamento e não enviaram</small></div>
+    <div class="kpi"><b>${visSegs(visMediana(visitas.map(x=>x.duracao)))}</b><small>tempo típico da visita</small></div>
+    <div class="kpi"><b>${visitas.length?Math.round(umaPagina/visitas.length*100):0}%</b><small>saíram na primeira página</small></div>
+  </div>
+
+  <div class="card"><h3>Visitas e pedidos de contato por dia</h3>${grafico}</div>
+
+  <div class="cols2">
+    <div class="card"><h3>Do primeiro clique ao contato</h3>
+      <div class="bars">${funil.map(([rot,n])=>`<div class="brow"><span>${rot}</span><i style="width:${Math.max(n/topo*100,1.5)}%"></i><span class="n">${n}</span></div>`).join('')}</div>
+      <p class="dica">Cada etapa conta visitas, não cliques.</p></div>
+    <div class="card"><h3>De onde vieram</h3>${visBarras(origens)}</div>
+    <div class="card"><h3>Páginas mais vistas</h3>${visBarras(paginas)}</div>
+    <div class="card"><h3>Em que aparelho</h3>${visBarras(aparelhos,4)}</div>
+    <div class="card"><h3>Botões mais clicados</h3>${visBarras(cta)}</div>
+    <div class="card"><h3>Dúvidas mais abertas</h3>${visBarras(duvidas)}
+      <p class="dica">O que as pessoas abrem é o que falta explicar na página.</p></div>
+  </div>
+
+  <div class="card"><h3>Começaram o orçamento e não enviaram</h3>
+    ${abandonos.length?`<div class="tw"><table><thead><tr><th>Quando</th><th>Origem</th><th>Página</th><th>O que já tinha preenchido</th><th class="n">Tempo</th></tr></thead><tbody>
+      ${abandonos.slice(0,40).map(x=>{ const ult=[...x.eventos].reverse().find(e=>e.nome==='orcamento_campo');
+        const campos=ult&&ult.detalhes?Object.entries(ult.detalhes).map(([k,val])=>k+': '+val).join(' · '):'começou e parou no primeiro campo';
+        const pag=[...x.eventos].reverse().find(e=>e.nome==='orcamento_iniciado');
+        return `<tr data-vis="${esc(x.id)}"><td>${dth(x.inicio)}</td><td>${esc(x.sessao&&x.sessao.origem||'—')}</td><td class="small">${esc(pag?pag.caminho:'—')}</td><td class="small">${esc(campos)}</td><td class="n">${visSegs(x.duracao)}</td></tr>`; }).join('')}
+    </tbody></table></div><p class="dica">Clique numa linha para ver a visita passo a passo.</p>`
+    :'<p class="mute">Ninguém abandonou o orçamento no período.</p>'}</div>
+
+  <div class="card"><h3>Visitas, uma por uma</h3>
+    <div class="bar" style="margin-bottom:10px"><input class="in" id="visBusca" placeholder="Filtrar por origem, página, aparelho ou código" style="min-width:260px"></div>
+    <div class="tw"><table><thead><tr><th>Quando</th><th>Origem</th><th>Aparelho</th><th class="n">Páginas</th><th class="n">Tempo</th><th>Situação</th></tr></thead><tbody id="visLinhas"></tbody></table></div>
+    <p class="dica">Clique numa visita para ver a sequência exata de passos.</p></div>`;
+
+  const desenhaLinhas=filtro=>{
+    const f=(filtro||'').trim().toLowerCase();
+    const L=visitas.filter(x=>{ if(!f) return true;
+      const s=x.sessao||{};
+      return [s.origem,s.dispositivo,s.navegador,s.sistema,x.visitante,x.id,...x.eventos.map(e=>e.caminho+' '+(e.rotulo||''))].join(' ').toLowerCase().includes(f); });
+    $('#visLinhas').innerHTML=L.slice(0,120).map(x=>`<tr data-vis="${esc(x.id)}">
+      <td>${dth(x.inicio)}</td><td>${esc(x.sessao&&x.sessao.origem||'—')}</td>
+      <td class="small">${esc(x.sessao&&x.sessao.dispositivo||'—')}</td>
+      <td class="n">${x.paginas}</td><td class="n">${visSegs(x.duracao)}</td>
+      <td>${x.contatou?'<span class="pill p-ok">pediu contato</span>':x.comecou?'<span class="pill p-novo">começou o orçamento</span>':''}</td></tr>`).join('')
+      ||'<tr><td colspan="6" class="mute">Nenhuma visita com esse filtro.</td></tr>';
+  };
+  desenhaLinhas('');
+
+  $('#visBusca').oninput=e=>desenhaLinhas(e.target.value);
+  v.querySelectorAll('[data-dias]').forEach(b=>b.onclick=()=>{ VIS_DIAS=Number(b.dataset.dias); visitantes(); });
+  $('#visCsv').onclick=()=>visBaixaCsv('visitantes',E);
+  v.onclick=e=>{ const tr=e.target.closest('[data-vis]'); if(!tr) return;
+    const x=visitas.find(y=>y.id===tr.dataset.vis); if(x) abreVisita(x); };
+}
+
+/* Linha do tempo de uma visita: o passo a passo que o Analytics não mostra. */
+function abreVisita(x){
+  fecha();
+  const s=x.sessao||{}, t0=new Date(x.inicio).getTime();
+  /* No preenchimento do orçamento o rótulo é o último campo mexido e o valor é a
+     contagem de campos — dado interno, que só atrapalha quem lê a linha do tempo. */
+  const detalhe=e=>{
+    const p=[];
+    if(e.nome==='orcamento_campo'){ if(e.rotulo) p.push('último campo: '+e.rotulo); }
+    else if(e.rotulo) p.push(e.rotulo);
+    if(e.detalhes) for(const k in e.detalhes){ const val=e.detalhes[k]; if(val!==null&&val!=='') p.push(k.replace(/_/g,' ')+': '+val); }
+    if(e.valor!=null&&e.nome!=='orcamento_campo') p.push(e.nome==='rolagem'?'leu '+e.valor+'% da página':'valor: '+e.valor);
+    return p.join(' · ');
+  };
+  const passos=fundo=>x.eventos.filter(e=>fundo||!VIS_FUNDO[e.nome]).map(e=>{
+    const dif=Math.round((new Date(e.criado_em)-t0)/1000);
+    return `<li style="margin-bottom:10px"><b>${esc(visEvRot(e.nome))}</b>
+      <span class="small mute">${new Date(e.criado_em).toLocaleTimeString('pt-BR')} · +${visSegs(dif)}</span><br>
+      <span class="small mute">${esc(e.caminho||'')}</span>${detalhe(e)?`<br><span class="small">${esc(detalhe(e))}</span>`:''}</li>`;
+  }).join('');
+
+  document.body.insertAdjacentHTML('beforeend',`<div class="shade"></div><aside class="drawer">
+    <h2>Visita de ${dth(x.inicio)}</h2>
+    <p class="small mute">${esc(s.origem||'origem desconhecida')} · ${esc(s.dispositivo||'?')} · ${esc(s.navegador||'')} ${esc(s.sistema||'')}<br>
+      ${x.paginas} página(s) · ${visSegs(x.duracao)} · visitante <code>${esc(String(x.visitante).slice(0,8))}</code></p>
+    ${s.utm_campaign?`<p class="small">Campanha: ${esc(s.utm_campaign)} (${esc(s.utm_medium||'')})</p>`:''}
+    <label class="small" style="display:block;margin:12px 0"><input type="checkbox" id="visFundo"> mostrar rolagem e tempo</label>
+    <ol id="visPassos" style="padding-left:18px">${passos(false)}</ol>
+  </aside>
+  <div class="actions"><button class="btn sec" id="visFecha">Fechar</button></div>`);
+
+  $('#visFecha').onclick=fecha;
+  document.querySelector('.shade').onclick=fecha;
+  $('#visFundo').onchange=e=>{ $('#visPassos').innerHTML=passos(e.target.checked); };
+}
+
+/* CSV com BOM, para o Excel em português abrir os acentos certos. */
+function visBaixaCsv(nome,linhas){
+  if(!linhas.length) return toast('Nada para baixar.');
+  const cols=[...new Set(linhas.flatMap(l=>Object.keys(l)))];
+  const cel=v=>'"'+String(v==null?'':typeof v==='object'?JSON.stringify(v):v).replace(/"/g,'""')+'"';
+  const csv=[cols.join(',')].concat(linhas.map(l=>cols.map(c=>cel(l[c])).join(','))).join('\n');
+  const url=URL.createObjectURL(new Blob(['﻿',csv],{type:'text/csv;charset=utf-8'}));
+  const a=document.createElement('a'); a.href=url; a.download=nome+'-'+hoje()+'.csv'; a.click(); URL.revokeObjectURL(url);
+}
+
 /* ---------- Login ---------- */
 $('#fLogin').onsubmit=async e=>{
   e.preventDefault(); $('#lErr').textContent='';
@@ -1228,6 +1447,10 @@ $('#fLogin').onsubmit=async e=>{
   const {error}=await sb.auth.signInWithPassword({email,password:s});
   if(error) $('#lErr').textContent='Usuário ou senha incorretos.';
 };
+async function carregaPapel(){
+  const {data}=await sb.from('equipe').select('papel').ilike('email',EU).maybeSingle();
+  PAPEL=(data&&data.papel)||'equipe';
+}
 $('#sair').onclick=()=>sb.auth.signOut();
 $('#pedRap').onclick=()=>pedidoRapido();
 // O Supabase repete o evento de login quando a aba volta ao foco (ex.: depois de abrir o WhatsApp).
@@ -1238,7 +1461,7 @@ sb.auth.onAuthStateChange((_ev,session)=>{
   $('#login').classList.toggle('hide',on); $('#app').classList.toggle('hide',!on);
   if(!on){ iniciado=false; return; }
   EU=session.user.email; $('#who').textContent=EU.split('@')[0];
-  if(!iniciado){ iniciado=true; render(); }
+  if(!iniciado){ iniciado=true; carregaPapel().then(render); }
 });
 </script>
 </body>
