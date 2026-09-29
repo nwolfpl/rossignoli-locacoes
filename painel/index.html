@@ -487,8 +487,9 @@ function painel(titulo,html,rotuloOk,aoConfirmar){ // gaveta simples para açõe
 const POR_PAG=50;
 async function contas(){
   const v=$('#view');
-  const [{data:all,error},eq]=await Promise.all([sb.from('contas').select('*').order('pontuacao',{ascending:false,nullsFirst:false}).order('nome'),sb.from('equipe').select('nome,email').order('nome'),carregaModelos()]); if(error) return toast(error.message);
+  const [{data:all,error},eq]=await Promise.all([sb.from('contas').select('*').order('pontuacao',{ascending:false,nullsFirst:false}).order('nome'),sb.from('equipe').select('nome,email,recebe_leads').order('nome'),carregaModelos()]); if(error) return toast(error.message);
   OP.equipe=(eq.data||[]).map(e=>[e.email,e.nome]);
+  const VENDE=(eq.data||[]).filter(e=>e.recebe_leads!==false).map(e=>[e.email,e.nome]);   // quem recebe leads (equipe.recebe_leads)
   const DUP=duplicadas(all);
   const uniq=k=>[...new Set(all.map(c=>c[k]).filter(Boolean))].sort();
   let FC={}; try{ FC=JSON.parse(localStorage.getItem('fContas')||'{}'); }catch(e){}
@@ -516,7 +517,7 @@ async function contas(){
     const m=$('#massa'); if(!SEL.size){ m.innerHTML=''; m.className=''; return; }
     m.className='massa';
     m.innerHTML=`<b>${SEL.size} selecionada(s)</b>${SEL.size<L.length?` <button class="btn sec" id="mTodas">Selecionar as ${L.length} desta vista</button>`:''}
-      <select class="in" id="mResp"><option value="">Responsável…</option>${OP.equipe.map(([e,n])=>`<option value="${esc(e)}">${esc(n)}</option>`).join('')}<option value="-">Tirar responsável</option></select>
+      <select class="in" id="mResp"><option value="">Responsável…</option>${VENDE.map(([e,n])=>`<option value="${esc(e)}">${esc(n)}</option>`).join('')}<option value="-">Tirar responsável</option></select>
       <select class="in" id="mPri"><option value="">Prioridade…</option><option>A</option><option>B</option><option>C</option></select>
       <input class="in" type="date" id="mData" value="${hoje()}"><input class="in" id="mPasso" placeholder="Próximo passo" style="width:160px"><button class="btn" id="mAgenda">Agendar</button>
       <select class="in" id="mDesc"><option value="">Descartar…</option>${OP.descarte.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join('')}</select>
@@ -571,27 +572,34 @@ async function contas(){
   $('#dist').onclick=()=>{
     const alvo=(SEL.size?all.filter(c=>SEL.has(c.id)):L.filter(c=>ABERTA(c)&&!c.responsavel)).sort((x,y)=>(y.pontuacao||0)-(x.pontuacao||0));
     if(!alvo.length) return toast('Nada para distribuir: marque contas ou use uma vista com contas abertas sem responsável');
-    if(!OP.equipe.length) return toast('Equipe não encontrada');
-    const d=painel('Distribuir contas',`<p class="small mute" style="margin:-4px 0 12px">${SEL.size?`${alvo.length} conta(s) marcada(s).`:`${alvo.length} conta(s) abertas e sem responsável nesta vista, com os filtros atuais.`} A pessoa passa a ver essas contas em "Minhas" e na Fila (opção "só as minhas").</p>
-      <div class="card"><b>Quem recebe</b><br>${OP.equipe.map(([e,n])=>`<label style="margin-right:12px"><input type="checkbox" name="p" value="${esc(e)}" checked> ${esc(n)}</label>`).join('')}</div>
-      <div class="card"><b>Como dividir</b><br>
+    if(!VENDE.length) return toast('Ninguém da equipe está marcado para receber leads');
+    const d=painel('Distribuir contas',`<p class="small mute" style="margin:-4px 0 12px">${SEL.size?`${alvo.length} conta(s) marcada(s).`:`${alvo.length} conta(s) abertas e sem responsável nesta vista, com os filtros atuais.`} Vão primeiro as de maior pontuação. A pessoa passa a ver as contas em "Minhas" e na Fila (opção "só as minhas").</p>
+      <div class="card"><b>Para quem</b><br>
+        <label><input type="radio" name="para" value="uma"> Direcionar para uma pessoa:</label> <select class="in" id="dUma" style="width:auto">${VENDE.map(([e,n])=>`<option value="${esc(e)}">${esc(n)}</option>`).join('')}</select><br>
+        <label><input type="radio" name="para" value="varias" checked> Dividir entre:</label> ${VENDE.map(([e,n])=>`<label style="margin-right:12px"><input type="checkbox" name="p" value="${esc(e)}" checked> ${esc(n)}</label>`).join('')}</div>
+      <div class="card"><b>Quantas contas</b><br><input class="in" type="number" id="dQtd" min="1" max="${alvo.length}" value="${alvo.length}" style="width:110px"> <span class="small mute">de ${alvo.length} (as de maior pontuação primeiro)</span></div>
+      <div class="card" id="dModo"><b>Como dividir</b><br>
         <label><input type="radio" name="modo" value="rodizio" checked> Por igual, alternando (cada um recebe leads bons e fracos)</label><br>
         <label><input type="radio" name="modo" value="cidade"> Por cidade (a mesma cidade fica com a mesma pessoa)</label><br>
         <label><input type="radio" name="modo" value="segmento"> Por segmento (cada um vira especialista num tipo de cliente)</label></div>
       <div class="card" id="prev"></div>`,'Distribuir',async d=>{
-        const pl=plano(d); if(!pl) return false;
+        const pl=plano(d); if(!pl) return false; const n=Object.values(pl).reduce((t,x)=>t+x.length,0);
         for(const [e,L2] of Object.entries(pl)) if(L2.length&&!(await emLote(L2.map(c=>c.id),{responsavel:e}))) return false;
-        toast(`${alvo.length} conta(s) distribuída(s)`); fecha(); contas(); });
-    const plano=d=>{ const P=[...d.querySelectorAll('[name=p]:checked')].map(i=>i.value); if(!P.length){ toast('Escolha ao menos uma pessoa'); return null; }
+        toast(`${n} conta(s) distribuída(s)`); fecha(); contas(); });
+    const plano=d=>{ const uma=d.querySelector('[name=para]:checked').value==='uma';
+      const P=uma?[$('#dUma').value]:[...d.querySelectorAll('[name=p]:checked')].map(i=>i.value); if(!P.length){ toast('Escolha ao menos uma pessoa'); return null; }
+      const qtd=Math.max(1,Math.min(alvo.length,parseInt($('#dQtd').value)||alvo.length)), A=alvo.slice(0,qtd);
       const modo=d.querySelector('[name=modo]:checked').value, out=Object.fromEntries(P.map(e=>[e,[]]));
-      if(modo==='rodizio') alvo.forEach((c,i)=>out[P[i%P.length]].push(c));
-      else { const g={}; alvo.forEach(c=>(g[c[modo]||'—']=g[c[modo]||'—']||[]).push(c));
+      if(P.length===1||modo==='rodizio') A.forEach((c,i)=>out[P[i%P.length]].push(c));
+      else { const g={}; A.forEach(c=>(g[c[modo]||'—']=g[c[modo]||'—']||[]).push(c));
         Object.values(g).sort((x,y)=>y.length-x.length).forEach(grp=>{ const e=P.reduce((m,p)=>out[p].length<out[m].length?p:m,P[0]); out[e].push(...grp); }); }
       return out; };
-    const mostra=()=>{ const pl=plano(d); if(!pl) return; $('#prev').innerHTML='<b>Resultado</b><br>'+Object.entries(pl).map(([e,L2])=>{
+    const mostra=()=>{ const uma=d.querySelector('[name=para]:checked').value==='uma'; $('#dModo').style.display=uma?'none':'';
+      const pl=plano(d); if(!pl) return; $('#prev').innerHTML='<b>Resultado</b><br>'+Object.entries(pl).map(([e,L2])=>{
       const top=[...new Set(L2.map(c=>c[d.querySelector('[name=modo]:checked').value==='segmento'?'segmento':'cidade']))].slice(0,3).join(', ');
       return `${esc(nomeResp(e))}: <b>${L2.length}</b> <span class="small mute">(${L2.filter(c=>c.prioridade==='A').length} prioridade A${top?' · '+esc(top):''})</span>`; }).join('<br>'); };
-    d.onchange=mostra; mostra();
+    $('#dUma').addEventListener('change',()=>{ d.querySelector('[name=para][value=uma]').checked=true; });
+    d.onchange=mostra; d.oninput=mostra; mostra();
   };
   async function abreConta(c){
     const topo=`<p class="small mute" style="margin:-4px 0 10px">${esc(c.segmento||'')} · ${esc(c.cidade||'')} · ${pill(c.status,lab('conta_status',c.status))} · origem: ${esc(c.fonte_lead||'—')}${c.responsavel?' · resp.: '+esc(nomeResp(c.responsavel)):''}${c.proximo_passo?` · próximo: <b>${esc(c.proximo_passo)}</b> ${dt(c.proximo_passo_em)}`:''}</p>
