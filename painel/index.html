@@ -54,6 +54,13 @@ td.n{text-align:right;font-variant-numeric:tabular-nums}
 .pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600;background:var(--paper);white-space:nowrap}
 .p-novo,.p-a_contatar,.p-monitorar{background:#FDE7DA;color:var(--orange-deep)}
 .p-fechado,.p-cliente,.p-ganha{background:#DFF0E5;color:var(--ok)}
+.p-descartada{background:#ECE8E1;color:#6B655E}
+.p-ok{background:#DFF0E5;color:var(--ok)}
+.massa{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--ink);color:#fff;border-radius:6px;padding:8px 10px;margin-bottom:8px}
+.massa .in{width:auto;min-height:32px;padding:4px 8px}.massa .btn{padding:5px 10px}
+th.sort{cursor:pointer}th.sort:hover{color:var(--orange-deep)}
+td.ck,th.ck{width:28px;padding-right:0}td.ck input,th.ck input{width:17px;height:17px;cursor:pointer}
+.pag{display:flex;gap:8px;align-items:center;justify-content:center;margin:10px 0}
 .p-perdido,.p-sem_interesse,.p-perdida{background:#F6DEDC;color:var(--bad)}
 .p-A{background:var(--ink);color:#fff}
 .mute{color:var(--mute)}.small{font-size:13px}
@@ -138,7 +145,9 @@ const pill = (v,lab) => v ? `<span class="pill p-${esc(v)}">${esc(lab||v.replace
 const OP = {
   pedido_status:[['novo','Novo'],['em_orcamento','Em orçamento'],['orcado','Orçado'],['fechado','Fechado'],['perdido','Perdido']],
   origem:[['site','Site'],['google_perfil','Perfil do Google'],['whatsapp_direto','WhatsApp direto'],['instagram','Instagram'],['indicacao','Indicação'],['licitacao','Licitação'],['parceiro','Parceiro'],['olx','OLX'],['outro','Outro']],
-  conta_status:[['a_contatar','A contatar'],['contatado','Contatado'],['proposta','Proposta enviada'],['cliente','Cliente'],['sem_interesse','Sem interesse']],
+  conta_status:[['a_contatar','A contatar'],['contatado','Contatado'],['proposta','Proposta enviada'],['cliente','Cliente'],['sem_interesse','Sem interesse'],['descartada','Descartada']],
+  descarte:[['fora_perfil','Fora do perfil (não usa içamento)'],['duplicada','Duplicada'],['fechada','Empresa fechada'],['longe','Fora da região'],['sem_contato','Sem contato depois de várias tentativas'],['outro','Outro motivo']],
+  equipe:[],
   tipo_conta:[['empresa','Empresa'],['parceiro','Parceiro'],['orgao_publico','Órgão público'],['concorrente','Concorrente']],
   prioridade:[['A','A'],['B','B'],['C','C']],
   atividade:[['ligacao','Ligação'],['whatsapp','WhatsApp'],['visita','Visita'],['email','E-mail'],['proposta','Proposta'],['outro','Outro']],
@@ -232,7 +241,7 @@ const F = {
     ['motivo_perda','Motivo se perdido','txt',null,1],['mensagem','Mensagem recebida','area',null,1],['observacoes','Observações','area',null,1]],
   contas:[['nome','Empresa','txt',null,1],['tipo','Tipo','sel','tipo_conta'],['segmento','Segmento'],['cidade','Cidade'],['telefone','Telefone (geral)'],['site','Site'],['endereco','Endereço','txt',null,1],
     ['decisor_nome','Decisor: nome'],['decisor_cargo','Decisor: cargo'],['decisor_telefone','Decisor: telefone direto'],
-    ['prioridade','Prioridade','sel','prioridade'],['status','Status','sel','conta_status'],['proximo_passo','Próximo passo','txt',null,1],['proximo_passo_em','Data do próximo passo','date'],
+    ['prioridade','Prioridade','sel','prioridade'],['status','Status','sel','conta_status'],['responsavel','Responsável','sel','equipe'],['descarte_motivo','Motivo do descarte','sel','descarte'],['proximo_passo','Próximo passo','txt',null,1],['proximo_passo_em','Data do próximo passo','date'],
     ['por_que_precisa','Por que precisa de munck','area',null,1],['como_abordar','Como abordar','area',null,1],['observacoes','Observações','area',null,1]],
   licitacoes:[['orgao','Órgão','txt',null,1],['cidade','Cidade'],['processo','Processo'],['objeto','Objeto','area',null,1],['valor_texto','Valor'],['abertura','Abertura','date'],
     ['tipo','Tipo','sel','lic_tipo'],['status','Status','sel','lic_status'],['vale_a_pena','Vale a pena?','sel','vale'],['proxima_janela','Próxima janela','date'],
@@ -253,7 +262,8 @@ const F = {
 
 function campo([k,l,t='txt',op,full],v){
   const c = full ? ' full' : '';
-  if(t==='sel') return `<label class="f${c}">${l}<select class="in" name="${k}"><option value=""></option>${OP[op].map(o=>`<option value="${o[0]}" ${o[0]===v?'selected':''}>${o[1]}</option>`).join('')}</select></label>`;
+  if(t==='sel'){ const L=v&&!OP[op].some(o=>o[0]===v)?[...OP[op],[v,v]]:OP[op];   // valor fora da lista continua salvo
+    return `<label class="f${c}">${l}<select class="in" name="${k}"><option value=""></option>${L.map(o=>`<option value="${esc(o[0])}" ${o[0]===v?'selected':''}>${esc(o[1])}</option>`).join('')}</select></label>`; }
   if(t==='area') return `<label class="f${c}">${l}<textarea class="in" name="${k}" rows="3">${esc(v)}</textarea></label>`;
   if(t==='bool') return `<label class="f${c}">${l}<select class="in" name="${k}"><option value="false" ${v?'':'selected'}>Não</option><option value="true" ${v?'selected':''}>Sim</option></select></label>`;
   const ty = t==='date'?'date':t==='num'?'number" step="any':t==='dtl'?'datetime-local':'text';
@@ -434,56 +444,169 @@ function viUmaObra(depois){
 }
 
 /* Contas */
-const VISTAS=[['todas','Todas'],['hoje','Para hoje'],['novas','Novas (7 dias)'],['negociando','Em negociação'],['paradas','Paradas há +7 dias'],['revisar','Contato a revisar'],['semdec','Sem decisor'],['semtel','Sem telefone'],['minhas','Minhas'],['clientes','Clientes']];
-// a importação inicial (26 e 28/09/2026) não conta como novidade
-const ehNova=c=>!!c.encontrado_em&&c.encontrado_em>=iso(new Date(Date.now()-7*864e5))&&!/prospecção inicial/i.test(c.fonte_lead||'')&&!/28\/09\/2026|26\/09\/2026/.test(c.origem_dado||'');
+const VISTAS=[['todas','Todas'],['hoje','Para hoje'],['chegou','Chegou hoje'],['novas','Novas (7 dias)'],['negociando','Em negociação'],['paradas','Paradas há +7 dias'],['semdono','Sem responsável'],['minhas','Minhas'],['revisar','Contato a revisar'],['semdec','Sem decisor'],['semtel','Sem telefone'],['duplicadas','Possíveis duplicadas'],['clientes','Clientes'],['descartadas','Descartadas']];
+// cargas em lote (Receita, prospecção inicial) têm importado=true e não contam como novidade
+const ehNova=c=>!c.importado&&!!c.encontrado_em&&c.encontrado_em>=iso(new Date(Date.now()-7*864e5));
 const ABERTA=c=>['a_contatar','contatado','proposta'].includes(c.status);
-const naVista=(k,c)=>{ const h=hoje(), d7=iso(new Date(Date.now()-7*864e5));
+// origem agrupada: licitação e obra ganha pesam mais que base cadastral
+const ORIGENS=[['PNCP',/pncp/i],['Cemig',/cemig/i],['SEMAD',/semad/i],['Vi uma obra',/vi uma obra/i],['Receita',/receita/i],['Maps',/maps/i]];
+const origem=c=>(ORIGENS.find(([,r])=>r.test(c.fonte_lead||''))||[c.fonte_lead?'Outras':'Sem origem'])[0];
+const cnpjDe=c=>((c.observacoes||'').match(/CNPJ (\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})/)||[])[1];
+const nomeResp=e=>e?(OP.equipe.find(o=>o[0]===e)||[,e.split('@')[0]])[1]:'';
+function duplicadas(all){ // mesmo CNPJ ou mesmo telefone entre contas não descartadas
+  const g={}, add=(k,c)=>{ if(k) (g[k]=g[k]||[]).push(c.id); };
+  all.filter(c=>c.status!=='descartada').forEach(c=>{ add(cnpjDe(c)&&'c'+cnpjDe(c),c); const t=dig(c.telefone); if(t.length>=10) add('t'+t,c); });
+  const grupo={}; Object.entries(g).filter(([,ids])=>ids.length>1).forEach(([k,ids])=>ids.forEach(id=>grupo[id]=grupo[id]||k));
+  return grupo; }
+const naVista=(k,c,DUP)=>{ const h=hoje(), d7=iso(new Date(Date.now()-7*864e5));
+  if(c.status==='descartada') return k==='descartadas';
   return k==='hoje'?ABERTA(c)&&c.proximo_passo_em&&c.proximo_passo_em<=h
+    :k==='chegou'?!c.importado&&c.encontrado_em===h
     :k==='novas'?ehNova(c)
     :k==='negociando'?c.status==='proposta'||/orçamento/i.test(c.proximo_passo||'')
     :k==='paradas'?['contatado','proposta'].includes(c.status)&&(!c.ultimo_contato_em||c.ultimo_contato_em.slice(0,10)<d7)
+    :k==='semdono'?ABERTA(c)&&!c.responsavel
     :k==='revisar'?ABERTA(c)&&(['desatualizado','empresa_fechada'].includes(c.contato_situacao)||contatoVelho(c)||(c.empresa_situacao&&c.empresa_situacao!=='ATIVA'))
     :k==='semdec'?ABERTA(c)&&!!c.telefone&&!c.decisor_nome
     :k==='semtel'?ABERTA(c)&&!c.telefone
+    :k==='duplicadas'?!!DUP[c.id]
     :k==='minhas'?c.responsavel===EU
-    :k==='clientes'?c.status==='cliente':true; };
+    :k==='clientes'?c.status==='cliente'
+    :k==='descartadas'?false:true; };
+async function emLote(ids,dados){ // PostgREST aceita a lista no endereço: vai de 100 em 100
+  for(let i=0;i<ids.length;i+=100){ const {error}=await sb.from('contas').update(dados).in('id',ids.slice(i,i+100)); if(error){ toast('Erro: '+error.message); return false; } }
+  return true; }
+function painel(titulo,html,rotuloOk,aoConfirmar){ // gaveta simples para ações da lista
+  fecha();
+  const sh=document.createElement('div'); sh.className='shade'; sh.onclick=fecha;
+  const d=document.createElement('div'); d.className='drawer'; d.innerHTML=`<h2>${esc(titulo)}</h2>${html}`;
+  const a=document.createElement('div'); a.className='actions'; a.innerHTML=`<button class="btn" id="pOk">${esc(rotuloOk)}</button><button class="btn sec" id="pNao">Cancelar</button>`;
+  document.body.append(sh,d,a); $('#pNao').onclick=fecha;
+  $('#pOk').onclick=async()=>{ $('#pOk').disabled=true; const ok=await aoConfirmar(d); if(ok===false) $('#pOk').disabled=false; };
+  return d; }
+const POR_PAG=50;
 async function contas(){
   const v=$('#view');
-  const [{data:all,error}]=await Promise.all([sb.from('contas').select('*').order('pontuacao',{ascending:false,nullsFirst:false}).order('nome'),carregaModelos()]); if(error) return toast(error.message);
+  const [{data:all,error},eq]=await Promise.all([sb.from('contas').select('*').order('pontuacao',{ascending:false,nullsFirst:false}).order('nome'),sb.from('equipe').select('nome,email').order('nome'),carregaModelos()]); if(error) return toast(error.message);
+  OP.equipe=(eq.data||[]).map(e=>[e.email,e.nome]);
+  const DUP=duplicadas(all);
   const uniq=k=>[...new Set(all.map(c=>c[k]).filter(Boolean))].sort();
   let FC={}; try{ FC=JSON.parse(localStorage.getItem('fContas')||'{}'); }catch(e){}
-  let vista=FC.vista||'todas';
+  let vista=FC.vista||'todas', ord=FC.ord||null, pag=0; const SEL=new Set(); let L=[];
+  const oris=[...ORIGENS.map(o=>o[0]),'Outras'].filter(o=>all.some(c=>origem(c)===o));
   v.innerHTML=`<div class="bar"><h2>Contas</h2>
     <input class="in" id="q" placeholder="Buscar nome, cidade, telefone…">
     <select class="in" id="fSeg"><option value="">Todos os segmentos</option>${uniq('segmento').map(s=>`<option>${esc(s)}</option>`).join('')}</select>
     <select class="in" id="fCid"><option value="">Todas as cidades</option>${uniq('cidade').map(s=>`<option>${esc(s)}</option>`).join('')}</select>
+    <select class="in" id="fOri"><option value="">Todas as origens</option>${oris.map(o=>`<option>${esc(o)}</option>`).join('')}</select>
     <select class="in" id="fPri"><option value="">Prioridade</option><option>A</option><option>B</option><option>C</option></select>
     <select class="in" id="fSt"><option value="">Todos os status</option>${OP.conta_status.map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('')}</select>
-    <button class="btn sec" id="viObra">Vi uma obra</button><button class="btn" id="novo">+ Conta</button></div><div class="chips" id="vistas"></div><div id="lista"></div>`;
-  const ids=['q','fSeg','fCid','fPri','fSt'];
+    <select class="in" id="fResp"><option value="">Todos os responsáveis</option><option value="-">Sem responsável</option>${OP.equipe.map(([e,n])=>`<option value="${esc(e)}">${esc(n)}</option>`).join('')}</select>
+    <button class="btn sec" id="dist">Distribuir</button><button class="btn sec" id="viObra">Vi uma obra</button><button class="btn" id="novo">+ Conta</button></div><div class="chips" id="vistas"></div><div id="massa"></div><div id="lista"></div>`;
+  const ids=['q','fSeg','fCid','fOri','fPri','fSt','fResp'];
   ids.forEach(k=>{ if(FC[k]!=null) $('#'+k).value=FC[k]; });
-  const desenha=()=>{
-    FC={vista}; ids.forEach(k=>FC[k]=$('#'+k).value); try{ localStorage.setItem('fContas',JSON.stringify(FC)); }catch(e){}
-    const q=$('#q').value.toLowerCase(), qd=dig(q), s=$('#fSeg').value, ci=$('#fCid').value, pr=$('#fPri').value, st=$('#fSt').value;
-    const base=all.filter(c=>(!q||c.nome.toLowerCase().includes(q)||(c.cidade||'').toLowerCase().includes(q)||(qd.length>3&&dig(c.telefone).includes(qd)))&&(!s||c.segmento===s)&&(!ci||c.cidade===ci)&&(!pr||c.prioridade===pr)&&(!st||c.status===st));
-    $('#vistas').innerHTML=VISTAS.map(([k,l])=>`<button class="chip${k===vista?' on':''}" data-v="${k}">${l}<b>${base.filter(c=>naVista(k,c)).length}</b></button>`).join('');
-    const L=q?base:base.filter(c=>naVista(vista,c));   // quem digita um nome quer achar a conta, esteja em que vista estiver
-    if(vista==='hoje') L.sort((a,b)=>a.proximo_passo_em.localeCompare(b.proximo_passo_em)||(b.pontuacao||0)-(a.pontuacao||0));
-    $('#lista').innerHTML=`<div class="count">${L.length} de ${all.length} contas${q?' · buscando em todas as vistas':''}</div><div class="tw"><table><thead><tr><th class="n">Pts</th><th>Empresa</th><th>Cidade</th><th>Telefone</th><th>Status</th><th>Próximo passo</th><th>Resp.</th></tr></thead><tbody>${
-      L.map(c=>`<tr data-id="${c.id}"><td class="n"><b>${c.pontuacao??''}</b></td><td><b>${esc(c.nome)}</b> ${pill(c.prioridade)}${ehNova(c)?' <span class="pill p-novo">novo</span>':''}${c.tipo==='parceiro'?' <span class="pill">parceiro</span>':''}<br><span class="mute small">${esc(c.segmento)}${c.decisor_nome?` · decisor: ${esc(c.decisor_nome)}`:''}</span></td><td>${esc(c.cidade)}</td><td class="small">${c.telefone?`<a href="tel:${dig(c.telefone)}" onclick="event.stopPropagation()">${esc(c.telefone)}</a>`:'<span class="late">pesquisar</span>'}<br>${seloContato(c)}</td><td>${pill(c.status,lab('conta_status',c.status))}${c.etapa?`<br><span class="mute small">etapa ${c.etapa}</span>`:''}</td><td class="small">${c.proximo_passo_em?`<span class="${c.proximo_passo_em<hoje()?'late':''}">${dt(c.proximo_passo_em)}</span> `:''}${esc(c.proximo_passo)}</td><td class="small mute">${esc((c.responsavel||'').split('@')[0])}</td></tr>`).join('')||'<tr><td colspan="7" class="mute">Nada nesta vista.</td></tr>'
-    }</tbody></table></div>`;
-    $('#lista tbody').onclick=e=>{ const tr=e.target.closest('tr[data-id]'); if(tr) abreConta(all.find(x=>x.id===tr.dataset.id)); };
+  const COLS=[['pontuacao','Pts','n'],['nome','Empresa'],['cidade','Cidade'],[null,'Telefone'],['status','Status'],['proximo_passo_em','Próximo passo'],['responsavel','Resp.']];
+  const cmp=(k,d)=>(a,b)=>{ const x=a[k], y=b[k]; if(x==null||x==='') return (y==null||y==='')?0:1; if(y==null||y==='') return -1;
+    return (typeof x==='number'?x-y:String(x).localeCompare(String(y),'pt'))*d; };
+  const filtra=()=>{
+    const q=$('#q').value.toLowerCase(), qd=dig(q), s=$('#fSeg').value, ci=$('#fCid').value, ori=$('#fOri').value, pr=$('#fPri').value, st=$('#fSt').value, rp=$('#fResp').value;
+    return all.filter(c=>(!q||c.nome.toLowerCase().includes(q)||(c.cidade||'').toLowerCase().includes(q)||(qd.length>3&&dig(c.telefone).includes(qd)))&&(!s||c.segmento===s)&&(!ci||c.cidade===ci)&&(!ori||origem(c)===ori)&&(!pr||c.prioridade===pr)&&(!st||c.status===st)&&(!rp||(rp==='-'?!c.responsavel:c.responsavel===rp)));
   };
-  $('#vistas').onclick=e=>{ const b=e.target.closest('[data-v]'); if(!b) return; vista=b.dataset.v; desenha(); };
+  const massa=()=>{
+    const m=$('#massa'); if(!SEL.size){ m.innerHTML=''; m.className=''; return; }
+    m.className='massa';
+    m.innerHTML=`<b>${SEL.size} selecionada(s)</b>${SEL.size<L.length?` <button class="btn sec" id="mTodas">Selecionar as ${L.length} desta vista</button>`:''}
+      <select class="in" id="mResp"><option value="">Responsável…</option>${OP.equipe.map(([e,n])=>`<option value="${esc(e)}">${esc(n)}</option>`).join('')}<option value="-">Tirar responsável</option></select>
+      <select class="in" id="mPri"><option value="">Prioridade…</option><option>A</option><option>B</option><option>C</option></select>
+      <input class="in" type="date" id="mData" value="${hoje()}"><input class="in" id="mPasso" placeholder="Próximo passo" style="width:160px"><button class="btn" id="mAgenda">Agendar</button>
+      <select class="in" id="mDesc"><option value="">Descartar…</option>${OP.descarte.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join('')}</select>
+      ${SEL.size===2?'<button class="btn" id="mJunta">Juntar as 2</button>':''}
+      <button class="btn sec" id="mLimpa" style="margin-left:auto">Limpar seleção</button>`;
+    const aplica=async(dados,msg)=>{ if(!confirm(`${msg} em ${SEL.size} conta(s)?`)) return; if(await emLote([...SEL],dados)){ toast(`Feito em ${SEL.size} conta(s)`); contas(); } };
+    $('#mTodas')&&($('#mTodas').onclick=()=>{ L.forEach(c=>SEL.add(c.id)); desenha(); });
+    $('#mLimpa').onclick=()=>{ SEL.clear(); desenha(); };
+    $('#mResp').onchange=e=>{ const r=e.target.value; if(r) aplica({responsavel:r==='-'?null:r},r==='-'?'Tirar o responsável':`Passar para ${nomeResp(r)}`); };
+    $('#mPri').onchange=e=>{ const p=e.target.value; if(p) aplica({prioridade:p},`Mudar prioridade para ${p}`); };
+    $('#mAgenda').onclick=()=>{ const d=$('#mData').value, t=$('#mPasso').value.trim(); if(!d||!t) return toast('Informe a data e o próximo passo'); aplica({proximo_passo:t,proximo_passo_em:d},`Agendar "${t}" para ${dt(d)}`); };
+    $('#mDesc').onchange=e=>{ const k=e.target.value; if(k) aplica({status:'descartada',descarte_motivo:k},`Descartar (${lab('descarte',k)})`); };
+    $('#mJunta')&&($('#mJunta').onclick=()=>junta([...SEL].map(id=>all.find(c=>c.id===id))));
+  };
+  const desenha=()=>{
+    FC={vista,ord}; ids.forEach(k=>FC[k]=$('#'+k).value); try{ localStorage.setItem('fContas',JSON.stringify(FC)); }catch(e){}
+    const base=filtra(), q=$('#q').value;
+    $('#vistas').innerHTML=VISTAS.map(([k,l])=>{ const n=base.filter(c=>naVista(k,c,DUP)).length;
+      return (n||k===vista||!['chegou','duplicadas','descartadas','clientes','negociando','paradas'].includes(k))?`<button class="chip${k===vista?' on':''}" data-v="${k}">${l}<b>${n}</b></button>`:''; }).join('');
+    L=q?base:base.filter(c=>naVista(vista,c,DUP));   // quem digita um nome quer achar a conta, esteja em que vista estiver
+    if(ord) L.sort(cmp(ord.k,ord.d));
+    else if(vista==='hoje') L.sort((a,b)=>a.proximo_passo_em.localeCompare(b.proximo_passo_em)||(b.pontuacao||0)-(a.pontuacao||0));
+    else if(vista==='duplicadas') L.sort((a,b)=>DUP[a.id].localeCompare(DUP[b.id])||(b.pontuacao||0)-(a.pontuacao||0));
+    const paginas=Math.max(1,Math.ceil(L.length/POR_PAG)); pag=Math.min(pag,paginas-1);
+    const P=L.slice(pag*POR_PAG,(pag+1)*POR_PAG), todosPag=P.length&&P.every(c=>SEL.has(c.id));
+    const nav=paginas>1?`<div class="pag"><button class="btn sec" data-p="${pag-1}" ${pag?'':'disabled'}>‹ Anterior</button><span class="small">página ${pag+1} de ${paginas}</span><button class="btn sec" data-p="${pag+1}" ${pag<paginas-1?'':'disabled'}>Próxima ›</button></div>`:'';
+    const selo=c=>(c.contato_situacao||'a_confirmar')==='a_confirmar'&&!contatoVelho(c)?'':c.contato_situacao==='confirmado'?'<span class="pill p-ok" title="Contato confirmado em conversa">✓ confirmado</span>':seloContato(c);
+    $('#lista').innerHTML=`<div class="count">${L.length} de ${all.length} contas${q?' · buscando em todas as vistas':''}${vista==='duplicadas'?' · marque 2 contas iguais e clique em "Juntar as 2"':''}</div><div class="tw"><table><thead><tr><th class="ck"><input type="checkbox" id="ckPag" ${todosPag?'checked':''} title="Marcar esta página"></th>${
+      COLS.map(([k,l,cl])=>k?`<th class="sort${cl?' '+cl:''}" data-o="${k}">${l}${ord&&ord.k===k?(ord.d>0?' ▲':' ▼'):''}</th>`:`<th>${l}</th>`).join('')}</tr></thead><tbody>${
+      P.map(c=>`<tr data-id="${c.id}"><td class="ck"><input type="checkbox" data-ck="${c.id}" ${SEL.has(c.id)?'checked':''}></td><td class="n"><b>${c.pontuacao??''}</b></td><td><b>${esc(c.nome)}</b> ${pill(c.prioridade)}${ehNova(c)?' <span class="pill p-novo">novo</span>':''}${c.tipo==='parceiro'?' <span class="pill">parceiro</span>':''}<br><span class="mute small">${esc(c.segmento)} · ${esc(origem(c))}${c.decisor_nome?` · decisor: ${esc(c.decisor_nome)}`:''}</span></td><td>${esc(c.cidade)}</td><td class="small" style="white-space:nowrap">${c.telefone?`<a href="tel:${dig(c.telefone)}" onclick="event.stopPropagation()">${esc(c.telefone)}</a>`:'<span class="late">pesquisar</span>'}<br>${selo(c)}</td><td>${pill(c.status,lab('conta_status',c.status))}${c.etapa?`<br><span class="mute small">etapa ${c.etapa}</span>`:''}</td><td class="small">${c.status==='descartada'?`<span class="mute">${esc(lab('descarte',c.descarte_motivo)||'')} ${dt(c.descartado_em)}</span>`:`${c.proximo_passo_em?`<span class="${c.proximo_passo_em<hoje()?'late':''}">${dt(c.proximo_passo_em)}</span> `:''}${esc(c.proximo_passo)}`}</td><td class="small mute">${esc(nomeResp(c.responsavel))}</td></tr>`).join('')||'<tr><td colspan="8" class="mute">Nada nesta vista.</td></tr>'
+    }</tbody></table></div>${nav}`;
+    $('#lista tbody').onclick=e=>{ const ck=e.target.closest('[data-ck]');
+      if(ck){ ck.checked?SEL.add(ck.dataset.ck):SEL.delete(ck.dataset.ck); massa(); return; }
+      if(e.target.closest('td.ck')) return;
+      const tr=e.target.closest('tr[data-id]'); if(tr) abreConta(all.find(x=>x.id===tr.dataset.id)); };
+    $('#ckPag').onclick=e=>{ P.forEach(c=>e.target.checked?SEL.add(c.id):SEL.delete(c.id)); desenha(); };
+    $('#lista thead').onclick=e=>{ const th=e.target.closest('[data-o]'); if(!th) return; const k=th.dataset.o;
+      ord=!ord||ord.k!==k?{k,d:['pontuacao'].includes(k)?-1:1}:ord.d===(k==='pontuacao'?-1:1)?{k,d:-ord.d}:null; pag=0; desenha(); };
+    $('#lista').querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{ pag=+b.dataset.p; desenha(); window.scrollTo(0,0); });
+    massa();
+  };
+  $('#vistas').onclick=e=>{ const b=e.target.closest('[data-v]'); if(!b) return; vista=b.dataset.v; pag=0; SEL.clear(); desenha(); };
   const recarrega=()=>contas();
+  function junta(dois){
+    const [a,b]=dois.sort((x,y)=>(y.status!=='a_contatar')-(x.status!=='a_contatar')||(y.pontuacao||0)-(x.pontuacao||0));
+    const linha=(c,chk)=>`<label class="card" style="display:block;cursor:pointer"><input type="radio" name="fica" value="${c.id}" ${chk?'checked':''}> <b>${esc(c.nome)}</b> ${pill(c.prioridade)}<br><span class="small mute">${esc(c.cidade||'')} · ${esc(c.telefone||'sem telefone')} · ${esc(lab('conta_status',c.status))} · ${esc(origem(c))}${c.decisor_nome?' · decisor: '+esc(c.decisor_nome):''}${cnpjDe(c)?' · CNPJ '+cnpjDe(c):''}</span></label>`;
+    painel('Juntar contas',`<p class="small mute" style="margin:-4px 0 12px">Escolha a conta que fica. O histórico e os pedidos da outra passam para ela, os campos vazios são preenchidos e a outra fica como descartada (duplicada). Nada é apagado.</p>${linha(a,true)}${linha(b,false)}`,'Juntar',async d=>{
+      const fica=d.querySelector('[name=fica]:checked').value, sai=fica===a.id?b.id:a.id;
+      const {error}=await sb.rpc('junta_contas',{manter:fica,remover:sai}); if(error){ toast('Erro: '+error.message); return false; }
+      toast('Contas juntadas'); fecha(); contas(); });
+  }
+  $('#dist').onclick=()=>{
+    const alvo=(SEL.size?all.filter(c=>SEL.has(c.id)):L.filter(c=>ABERTA(c)&&!c.responsavel)).sort((x,y)=>(y.pontuacao||0)-(x.pontuacao||0));
+    if(!alvo.length) return toast('Nada para distribuir: marque contas ou use uma vista com contas abertas sem responsável');
+    if(!OP.equipe.length) return toast('Equipe não encontrada');
+    const d=painel('Distribuir contas',`<p class="small mute" style="margin:-4px 0 12px">${SEL.size?`${alvo.length} conta(s) marcada(s).`:`${alvo.length} conta(s) abertas e sem responsável nesta vista, com os filtros atuais.`} A pessoa passa a ver essas contas em "Minhas" e na Fila (opção "só as minhas").</p>
+      <div class="card"><b>Quem recebe</b><br>${OP.equipe.map(([e,n])=>`<label style="margin-right:12px"><input type="checkbox" name="p" value="${esc(e)}" checked> ${esc(n)}</label>`).join('')}</div>
+      <div class="card"><b>Como dividir</b><br>
+        <label><input type="radio" name="modo" value="rodizio" checked> Por igual, alternando (cada um recebe leads bons e fracos)</label><br>
+        <label><input type="radio" name="modo" value="cidade"> Por cidade (a mesma cidade fica com a mesma pessoa)</label><br>
+        <label><input type="radio" name="modo" value="segmento"> Por segmento (cada um vira especialista num tipo de cliente)</label></div>
+      <div class="card" id="prev"></div>`,'Distribuir',async d=>{
+        const pl=plano(d); if(!pl) return false;
+        for(const [e,L2] of Object.entries(pl)) if(L2.length&&!(await emLote(L2.map(c=>c.id),{responsavel:e}))) return false;
+        toast(`${alvo.length} conta(s) distribuída(s)`); fecha(); contas(); });
+    const plano=d=>{ const P=[...d.querySelectorAll('[name=p]:checked')].map(i=>i.value); if(!P.length){ toast('Escolha ao menos uma pessoa'); return null; }
+      const modo=d.querySelector('[name=modo]:checked').value, out=Object.fromEntries(P.map(e=>[e,[]]));
+      if(modo==='rodizio') alvo.forEach((c,i)=>out[P[i%P.length]].push(c));
+      else { const g={}; alvo.forEach(c=>(g[c[modo]||'—']=g[c[modo]||'—']||[]).push(c));
+        Object.values(g).sort((x,y)=>y.length-x.length).forEach(grp=>{ const e=P.reduce((m,p)=>out[p].length<out[m].length?p:m,P[0]); out[e].push(...grp); }); }
+      return out; };
+    const mostra=()=>{ const pl=plano(d); if(!pl) return; $('#prev').innerHTML='<b>Resultado</b><br>'+Object.entries(pl).map(([e,L2])=>{
+      const top=[...new Set(L2.map(c=>c[d.querySelector('[name=modo]:checked').value==='segmento'?'segmento':'cidade']))].slice(0,3).join(', ');
+      return `${esc(nomeResp(e))}: <b>${L2.length}</b> <span class="small mute">(${L2.filter(c=>c.prioridade==='A').length} prioridade A${top?' · '+esc(top):''})</span>`; }).join('<br>'); };
+    d.onchange=mostra; mostra();
+  };
   async function abreConta(c){
-    const topo=`<p class="small mute" style="margin:-4px 0 10px">${esc(c.segmento||'')} · ${esc(c.cidade||'')} · ${pill(c.status,lab('conta_status',c.status))}${c.proximo_passo?` · próximo: <b>${esc(c.proximo_passo)}</b> ${dt(c.proximo_passo_em)}`:''}</p>
+    const topo=`<p class="small mute" style="margin:-4px 0 10px">${esc(c.segmento||'')} · ${esc(c.cidade||'')} · ${pill(c.status,lab('conta_status',c.status))} · origem: ${esc(c.fonte_lead||'—')}${c.responsavel?' · resp.: '+esc(nomeResp(c.responsavel)):''}${c.proximo_passo?` · próximo: <b>${esc(c.proximo_passo)}</b> ${dt(c.proximo_passo_em)}`:''}</p>
       <p class="small" style="margin:-4px 0 10px">Contato: ${seloContato(c,true)}</p>
+      <div class="res" style="margin:0 0 10px;border:0;padding:0">${c.status==='descartada'
+        ?`<span class="small">Descartada${c.descarte_motivo?' ('+esc(lab('descarte',c.descarte_motivo))+')':''} em ${dt(c.descartado_em)}.</span> <button class="btn sec" id="cReativa">Reativar</button>`
+        :`${c.responsavel!==EU?'<button class="btn sec" id="cPego">Ficar com ela</button>':''}<select class="in" id="cDesc"><option value="">Descartar…</option>${OP.descarte.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join('')}</select>`}</div>
       ${c.por_que_precisa||c.como_abordar?`<div class="card small"><b>Por que precisa:</b> ${esc(c.por_que_precisa||'—')}<br><b>Como abordar:</b> ${esc(c.como_abordar||'—')}</div>`:''}
       <div class="card">${blocoContato(c,true)}</div>
       <div class="hist"><h3>Histórico</h3><ul id="lAt"><li class="mute">Carregando…</li></ul></div>`;
     const d=gaveta('contas',c,c.nome,recarrega,'',{topo,recolhido:true,semApagar:true});
+    const muda=async(dados,msg)=>{ const {error}=await sb.from('contas').update(dados).eq('id',c.id); if(error) return toast('Erro: '+error.message); toast(msg); fecha(); contas(); };
+    $('#cReativa')&&($('#cReativa').onclick=()=>muda({status:'a_contatar'},'Conta reativada'));
+    $('#cPego')&&($('#cPego').onclick=()=>muda({responsavel:EU},'A conta agora é sua'));
+    $('#cDesc')&&($('#cDesc').onchange=e=>{ const k=e.target.value; if(k&&confirm(`Descartar ${c.nome} (${lab('descarte',k)})?`)) muda({status:'descartada',descarte_motivo:k},'Conta descartada'); else e.target.value=''; });
     const lista=async()=>{ const {data}=await sb.from('atividades').select('*').eq('conta_id',c.id).order('feito_em',{ascending:false});
       $('#lAt').innerHTML=(data||[]).length?data.map(a=>`<li><b>${dth(a.feito_em)}</b> · ${esc(lab('atividade',a.tipo))}${a.resultado?' · '+esc(RES[a.resultado]||a.resultado):''} · ${esc(a.resumo)} <span class="mute small">(${esc((a.feito_por||'').split('@')[0])})</span></li>`).join(''):'<li class="mute">Nenhum contato registrado.</li>'; };
     ligaContato(d.querySelector('[data-ctt]').parentNode,c,async()=>{
@@ -492,8 +615,8 @@ async function contas(){
       lista(); desenha(); });
     lista();
   }
-  ids.forEach(i=>$('#'+i).addEventListener('input',desenha));
-  $('#novo').onclick=()=>gaveta('contas',{tipo:'empresa',status:'a_contatar'},'Nova conta',recarrega);
+  ids.forEach(i=>$('#'+i).addEventListener('input',()=>{ pag=0; desenha(); }));
+  $('#novo').onclick=()=>gaveta('contas',{tipo:'empresa',status:'a_contatar',responsavel:EU},'Nova conta',recarrega);
   $('#viObra').onclick=()=>viUmaObra(recarrega);
   desenha();
 }
