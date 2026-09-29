@@ -820,7 +820,7 @@ async function relatorios(){
 
     if(visao==='geral'){
       const novos=P.filter(p=>p.status==='novo'), parados=P.filter(p=>['em_orcamento','orcado'].includes(p.status)), p2=parados.filter(p=>diasDesde(diaDe(p.atualizado_em))>2), p7=parados.filter(p=>diasDesde(diaDe(p.atualizado_em))>7);
-      const venc=C.filter(c=>['a_contatar','contatado','proposta'].includes(c.status)&&c.proximo_passo_em&&c.proximo_passo_em<h);
+      const venc=C.filter(c=>['a_contatar','contatado','proposta'].includes(c.status)&&c.proximo_passo_em&&c.proximo_passo_em<=h);   // igual à Fila: vence no dia
       const ult={}; P.filter(p=>p.status==='fechado').forEach(p=>{ const k=chaveCli(p), d=diaFech(p); if(!ult[k]||d>ult[k].d) ult[k]={d,p}; });
       const sumidos=Object.values(ult).filter(x=>diasDesde(x.d)>90);
       const semValor=P.filter(p=>p.status==='fechado'&&p.valor_fechado==null);
@@ -863,7 +863,7 @@ async function relatorios(){
     if(visao==='prosp'){
       const at=m.at, pessoas=[...new Set(at.map(x=>x.feito_por).filter(Boolean))];
       const porPessoa=pessoas.map(e=>{ const L=at.filter(x=>x.feito_por===e), dias=new Set(L.map(x=>diaDe(x.feito_em))).size, cv=L.filter(x=>CONVERSA.includes(x.resultado)).length;
-        return [nomeResp(e),L.length,new Set(L.map(x=>x.conta_id)).size,dias,m.uteis?Math.round(L.length/m.uteis*10)/10:null,cv,pct(cv,L.length),CO.filter(c=>c.responsavel===e&&['a_contatar','contatado','proposta'].includes(c.status)&&c.proximo_passo_em&&c.proximo_passo_em<h).length]; }).sort((x,y)=>y[1]-x[1]);
+        return [nomeResp(e),L.length,new Set(L.map(x=>x.conta_id)).size,dias,m.uteis?Math.round(L.length/m.uteis*10)/10:null,cv,pct(cv,L.length),CO.filter(c=>c.responsavel===e&&['a_contatar','contatado','proposta'].includes(c.status)&&c.proximo_passo_em&&c.proximo_passo_em<=h).length]; }).sort((x,y)=>y[1]-x[1]);
       const porConta={}; at.forEach(x=>{ (porConta[x.conta_id]=porConta[x.conta_id]||[]).push(x.resultado); });
       const porGrupo=k=>{ const g={}; Object.entries(porConta).forEach(([id,rs])=>{ const c=contaPor[id]; if(!c) return; const x=k(c)||'—'; const o=g[x]=g[x]||[0,0,0,0];
         o[0]++; if(rs.some(r=>CONVERSA.includes(r))) o[1]++; if(rs.some(r=>['interessado','proposta'].includes(r))) o[2]++; if(c.status==='cliente') o[3]++; });
@@ -879,7 +879,7 @@ async function relatorios(){
     if(visao==='carteira'){
       const ab=C.filter(c=>['a_contatar','contatado','proposta'].includes(c.status));
       const porResp=[...new Set(C.map(c=>c.responsavel||''))].map(e=>{ const L=ab.filter(c=>(c.responsavel||'')===e);
-        return [e?nomeResp(e):'Sem responsável',L.length,L.filter(c=>c.status==='contatado').length,L.filter(c=>c.status==='proposta').length,L.filter(c=>c.proximo_passo_em&&c.proximo_passo_em<h).length,C.filter(c=>(c.responsavel||'')===e&&c.status==='cliente').length]; }).filter(x=>x[1]||x[5]).sort((a,b)=>b[1]-a[1]);
+        return [e?nomeResp(e):'Sem responsável',L.length,L.filter(c=>c.status==='contatado').length,L.filter(c=>c.status==='proposta').length,L.filter(c=>c.proximo_passo_em&&c.proximo_passo_em<=h).length,C.filter(c=>(c.responsavel||'')===e&&c.status==='cliente').length]; }).filter(x=>x[1]||x[5]).sort((a,b)=>b[1]-a[1]);
       const cli={}; P.filter(p=>p.status==='fechado').forEach(p=>{ const k=chaveCli(p), d=diaFech(p), o=cli[k]=cli[k]||{nome:nomeCli(p),cidade:p.cidade,n:0,tot:0,ult:''}; o.n++; o.tot+=Number(p.valor_fechado||0); if((d||'')>o.ult){ o.ult=d; o.nome=nomeCli(p); } });
       const CL=Object.values(cli).sort((a,b)=>b.tot-a.tot||b.n-a.n);
       const parados=P.filter(p=>['em_orcamento','orcado'].includes(p.status)).map(p=>[nomeCli(p),p.cidade,p.servico||p.carga,lab('pedido_status',p.status),diasDesde(diaDe(p.atualizado_em)),nomeResp(p.responsavel)]).sort((a,b)=>b[4]-a[4]);
