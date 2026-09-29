@@ -50,9 +50,13 @@ section{padding-block:clamp(56px,8vw,104px);scroll-margin-top:64px}
 /* ---------- topo ---------- */
 .top{position:sticky;top:0;z-index:50;background:rgba(18,18,18,.95);backdrop-filter:blur(8px);color:#fff;border-bottom:1px solid var(--line-dark)}
 .top .wrap{display:flex;align-items:center;gap:20px;min-height:62px}
-.logo{display:flex;flex-direction:column;text-decoration:none;line-height:.86;font-family:var(--display);font-weight:800;text-transform:uppercase}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.logo-rl{display:block;height:38px;width:auto;flex:none}
+.logo-txt{display:flex;flex-direction:column;line-height:.86;font-family:var(--display);font-weight:800;text-transform:uppercase}
 .logo b{font-size:23px;letter-spacing:.02em;color:#fff}
-.logo span{font-size:18px;letter-spacing:.06em;color:var(--orange)}
+.logo-txt span{font-size:18px;letter-spacing:.06em;color:var(--orange)}
+@media(min-width:760px){.logo-rl{height:44px}}
+@media(max-width:359px){.logo{gap:7px}.logo-rl{height:32px}.logo b{font-size:19px}.logo-txt span{font-size:15px}}
 .top nav{display:none;gap:24px;margin-left:auto;font-weight:600;font-size:15px}
 .top nav a{text-decoration:none;color:#CFC9C1}
 .top nav a:hover{color:#fff}

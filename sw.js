@@ -10,15 +10,16 @@
  * Supabase são de outra origem e seguem direto para a rede, então nenhum dado de
  * pedido, visita ou cliente é guardado no aparelho.
  */
-const VERSAO = 'rossignoli-v2';
+const VERSAO = 'rossignoli-v5';
 const OFFLINE = '/offline/';
 
 /* Só o essencial para a casca abrir sem sinal. */
 const ESSENCIAIS = [
   OFFLINE,
-  '/css/site.css',
+  '/css/site.css?v=5',   // mesmo endereço que as páginas pedem; subir junto com o ?v= delas
   '/icons/site-192.png',
   '/icons/painel-192.png',
+  '/brand/rl-cabecalho.png',
 ];
 
 self.addEventListener('install', (e) => {
@@ -38,7 +39,30 @@ self.addEventListener('activate', (e) => {
   })());
 });
 
-const ESTATICO = /\.(css|js|png|jpg|jpeg|webp|svg|ico|woff2?|mp4|webmanifest)$/i;
+/*
+ * Código e mídia têm regras diferentes, e a diferença não é detalhe.
+ *
+ * CSS e JS andam junto com o HTML: se a página vem nova e o estilo vem do
+ * cache, a primeira visita depois de uma publicação renderiza HTML novo com CSS
+ * velho — quebrado. Aconteceu no teste da troca de logo. Então código segue a
+ * mesma regra das páginas: rede primeiro, cache só sem sinal.
+ *
+ * Imagem e vídeo podem vir do cache na hora: são grandes, quase nunca mudam, e
+ * se mudarem a pior consequência é uma foto antiga por uma visita.
+ */
+const CODIGO = /\.(css|js|webmanifest)$/i;
+const MIDIA = /\.(png|jpg|jpeg|webp|svg|ico|woff2?|mp4)$/i;
+
+/* Rede primeiro, guardando a resposta; sem rede, o que houver no cache. */
+async function redePrimeiro(req, reserva) {
+  try {
+    const resposta = await fetch(req);
+    if (resposta.ok) (await caches.open(VERSAO)).put(req, resposta.clone());
+    return resposta;
+  } catch (err) {
+    return (await caches.match(req)) || (reserva && (await caches.match(reserva))) || Response.error();
+  }
+}
 
 self.addEventListener('fetch', (e) => {
   const req = e.request;
@@ -48,24 +72,20 @@ self.addEventListener('fetch', (e) => {
   if (url.origin !== self.location.origin) return;   // Supabase, fontes do Google, WhatsApp
   if (url.searchParams.has('ping')) return;   // sondagem de conexão: tem de tocar a rede
 
-  /* Páginas: rede primeiro. Sem sinal, a última versão vista; nunca vista, a
-     página offline, que guarda o telefone — o serviço é 24 horas. */
+  /* Páginas: sem sinal, a última versão vista; nunca vista, a página offline,
+     que guarda o telefone — o serviço é 24 horas. */
   if (req.mode === 'navigate') {
-    e.respondWith((async () => {
-      try {
-        const resposta = await fetch(req);
-        const cache = await caches.open(VERSAO);
-        cache.put(req, resposta.clone());
-        return resposta;
-      } catch (err) {
-        return (await caches.match(req)) || (await caches.match(OFFLINE)) || Response.error();
-      }
-    })());
+    e.respondWith(redePrimeiro(req, OFFLINE));
     return;
   }
 
-  /* Arquivos fixos: entrega o cache na hora e atualiza por trás. */
-  if (ESTATICO.test(url.pathname)) {
+  if (CODIGO.test(url.pathname)) {
+    e.respondWith(redePrimeiro(req));
+    return;
+  }
+
+  /* Mídia: entrega o cache na hora e atualiza por trás. */
+  if (MIDIA.test(url.pathname)) {
     e.respondWith((async () => {
       const cache = await caches.open(VERSAO);
       const guardado = await cache.match(req);

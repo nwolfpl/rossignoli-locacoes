@@ -20,7 +20,7 @@
 <meta property="og:locale" content="pt_BR">
 <meta property="og:title" content="Caminhão munck com operador no Sul de Minas — Rossignoli Locações">
 <meta property="og:description" content="Mande foto, peso e endereço pelo WhatsApp. Valor fechado antes do caminhão sair. 24 h.">
-<meta property="og:image" content="https://rossignolilocacoes.com.br/og.jpg">
+<meta property="og:image" content="https://rossignolilocacoes.com.br/og.jpg?v=2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
@@ -32,7 +32,8 @@
   "@id": "https://rossignolilocacoes.com.br/#empresa",
   "name": "Rossignoli Locações",
   "description": "Locação de caminhão munck (guindaste articulado) com operador para içamento e movimentação de cargas em Varginha e no Sul de Minas.",
-  "image": "og.jpg",
+  "image": "https://rossignolilocacoes.com.br/og.jpg?v=2",
+  "logo": "https://rossignolilocacoes.com.br/brand/logo-completo-512.png",
   "telephone": "+55-35-99191-2616",
   "priceRange": "$$",
   "address": {
@@ -206,9 +207,13 @@ section{padding-block:clamp(56px,8vw,104px);scroll-margin-top:64px}
 /* ---------- topo ---------- */
 .top{position:sticky;top:0;z-index:50;background:rgba(18,18,18,.95);backdrop-filter:blur(8px);color:#fff;border-bottom:1px solid var(--line-dark)}
 .top .wrap{display:flex;align-items:center;gap:20px;min-height:62px}
-.logo{display:flex;flex-direction:column;text-decoration:none;line-height:.86;font-family:var(--display);font-weight:800;text-transform:uppercase}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.logo-rl{display:block;height:38px;width:auto;flex:none}
+.logo-txt{display:flex;flex-direction:column;line-height:.86;font-family:var(--display);font-weight:800;text-transform:uppercase}
 .logo b{font-size:23px;letter-spacing:.02em;color:#fff}
-.logo span{font-size:18px;letter-spacing:.06em;color:var(--orange)}
+.logo-txt span{font-size:18px;letter-spacing:.06em;color:var(--orange)}
+@media(min-width:760px){.logo-rl{height:44px}}
+@media(max-width:359px){.logo{gap:7px}.logo-rl{height:32px}.logo b{font-size:19px}.logo-txt span{font-size:15px}}
 .top nav{display:none;gap:24px;margin-left:auto;font-weight:600;font-size:15px}
 .top nav a{text-decoration:none;color:#CFC9C1}
 .top nav a:hover{color:#fff}
@@ -364,7 +369,7 @@ footer a{color:#EDE9E3}
 
 <header class="top">
   <div class="wrap">
-    <a class="logo" href="#topo" aria-label="Rossignoli Locações, início"><b>Rossignoli</b><span>Locações</span></a>
+    <a class="logo" href="#topo" aria-label="Rossignoli Locações, início"><img class="logo-rl" src="/brand/rl-cabecalho.png" alt="" width="53" height="44"><span class="logo-txt"><b>Rossignoli</b><span>Locações</span></span></a>
     <nav aria-label="Seções">
       <a href="#pedido">Orçamento</a>
       <a href="#servicos">Serviços</a>
@@ -678,7 +683,7 @@ footer a{color:#EDE9E3}
 <footer>
   <div class="wrap">
     <div>
-      <a class="logo" href="#topo"><b>Rossignoli</b><span>Locações</span></a>
+      <a class="logo" href="#topo"><img class="logo-rl" src="/brand/rl-cabecalho.png" alt="" width="53" height="44"><span class="logo-txt"><b>Rossignoli</b><span>Locações</span></span></a>
       <p style="margin-top:14px">Locação de caminhão munck com operador em Varginha e no Sul de Minas.</p>
     </div>
     <div>
