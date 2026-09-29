@@ -10,7 +10,7 @@
  * Supabase são de outra origem e seguem direto para a rede, então nenhum dado de
  * pedido, visita ou cliente é guardado no aparelho.
  */
-const VERSAO = 'rossignoli-v5';
+const VERSAO = 'rossignoli-v6';
 const OFFLINE = '/offline/';
 
 /* Só o essencial para a casca abrir sem sinal. */

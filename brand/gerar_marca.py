@@ -1,18 +1,24 @@
 """
-Gera todos os arquivos de marca a partir de brand/emblema-rl.png.
+Gera todos os arquivos de marca a partir de dois recortes da logo original
+(brand/logo-original-1600.webp):
 
-O emblema veio de uma foto de perfil de 150x150 px (o conteúdo real da marca tem
-106 px). Por isso a imagem foi limpa, ampliada em degraus e teve o fundo
-removido; o painel escuro em volta é redesenhado aqui, e não ampliado, para
-ficar nítido em qualquer tamanho. Quando chegar o arquivo original em alta,
-basta trocar brand/emblema-rl.png e rodar de novo.
+- brand/emblema-rl.png: RL e o traço laranja, sem fundo;
+- brand/nome-rossignoli.png: ROSSIGNOLI LOCAÇÕES, sem fundo.
+
+O painel escuro em volta não é recortado da imagem: é redesenhado aqui, com a
+mesma luz diagonal, para ficar nítido em qualquer tamanho e sem a moldura e o
+artefato branco do canto que vêm no arquivo.
+
+Rodar de novo depois de trocar qualquer um dos dois recortes atualiza ícones,
+favicon, logo completa, imagem de compartilhamento e a página offline.
 """
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 import pathlib
 
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
 EMBLEMA = Image.open(RAIZ / "brand/emblema-rl.png").convert("RGBA")
-FONTE = "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf"
+NOME = Image.open(RAIZ / "brand/nome-rossignoli.png").convert("RGBA")
+FONTE = "/System/Library/Fonts/Supplemental/Trebuchet MS Bold.ttf"   # a mais próxima do nome original
 LARANJA = (224, 112, 30)
 
 
@@ -98,42 +104,21 @@ if __name__ == "__main__":
 
 def logo_completo(lado):
     """
-    A logo inteira, como a original: RL, traço e o nome embaixo.
-
-    O nome NÃO vem da imagem: no arquivo recebido ele tem uns 10 px de altura e
-    viraria borrão ampliado. Ele é redesenhado como texto, na fonte condensada
-    que o próprio site declara, e por isso sai nítido em qualquer tamanho.
+    A logo inteira, como a original: RL, traço e o nome embaixo — o nome recortado
+    do arquivo original, não redesenhado. Proporções medidas no original: o nome
+    tem a largura do emblema e fica a 8% da altura dele abaixo do traço.
     """
     base = fundo(lado)
-    larg = int(lado * 0.72)
-    emb = EMBLEMA.resize((larg, int(EMBLEMA.height * larg / EMBLEMA.width)), Image.LANCZOS)
+    larg = int(lado * 0.74)
+    emb = EMBLEMA.resize((larg, round(EMBLEMA.height * larg / EMBLEMA.width)), Image.LANCZOS)
+    nome = NOME.resize((larg, round(NOME.height * larg / NOME.width)), Image.LANCZOS)
     bloco, pad = com_sombra(emb, lado)
 
-    nome = "ROSSIGNOLI LOCAÇÕES"
-    fonte = ImageFont.truetype(FONTE, int(lado * 0.085))
-    d = ImageDraw.Draw(base)
-    # Espaçamento aberto como no original: desenha letra a letra.
-    esp = lado * 0.006
-    largs = [d.textbbox((0, 0), c, font=fonte)[2] for c in nome]
-    total_txt = sum(largs) + esp * (len(nome) - 1)
-    # Nome não pode passar da largura do emblema.
-    if total_txt > larg:
-        fonte = ImageFont.truetype(FONTE, int(lado * 0.085 * larg / total_txt))
-        largs = [d.textbbox((0, 0), c, font=fonte)[2] for c in nome]
-        total_txt = sum(largs) + esp * (len(nome) - 1)
-    cx = d.textbbox((0, 0), nome, font=fonte)
-    alt_txt = cx[3] - cx[1]
-
-    folga = int(lado * 0.045)
-    altura_bloco = emb.height + folga + alt_txt
-    y0 = (lado - altura_bloco) // 2
+    folga = round(emb.height * 0.08)
+    total = emb.height + folga + nome.height
+    y0 = (lado - total) // 2
     base.alpha_composite(bloco, ((lado - bloco.width) // 2, y0 - pad))
-
-    x = (lado - total_txt) / 2
-    y = y0 + emb.height + folga - cx[1]
-    for c, w in zip(nome, largs):
-        d.text((x, y), c, font=fonte, fill=(244, 241, 236))
-        x += w + esp
+    base.alpha_composite(nome, ((lado - nome.width) // 2, y0 + emb.height + folga))
     return base
 
 
@@ -152,7 +137,23 @@ def og_com_marca(foto, destino):
     img.convert("RGB").save(destino, quality=88, optimize=True)
 
 
+def atualiza_offline():
+    """A página offline não pode buscar nada na rede, então a logo vai dentro dela."""
+    import base64, io, re
+    alt = 88
+    e = EMBLEMA.resize((round(EMBLEMA.width * alt / EMBLEMA.height), alt), Image.LANCZOS)
+    buf = io.BytesIO(); e.save(buf, "PNG", optimize=True)
+    uri = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    p = RAIZ / "offline/index.html"
+    s = p.read_text(encoding="utf-8")
+    s, n = re.subn(r'(<img class="rl" alt="" width=")\d+(" height="44" src=")data:image/png;base64,[^"]+"',
+                   lambda m: f'{m.group(1)}{round(e.width / 2)}{m.group(2)}{uri}"', s)
+    assert n == 1, "logo da página offline não encontrada"
+    p.write_text(s, encoding="utf-8")
+
+
 if __name__ == "__main__":
+    atualiza_offline()
     logo_completo(1024).convert("RGB").save(RAIZ / "brand/logo-completo-1024.png", optimize=True)
     logo_completo(512).convert("RGB").save(RAIZ / "brand/logo-completo-512.png", optimize=True)
     orig = RAIZ / "brand/og-original.jpg"
