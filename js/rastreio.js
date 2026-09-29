@@ -193,6 +193,17 @@
     registra('sessao_inicio', { rotulo: origem() });
   }
 
+  /* App instalado na tela inicial abre em modo standalone. Marcar isso como
+     evento — e não como origem — mede o uso do app sem sujar a atribuição de
+     canal: quem instalou já era cliente, não é aquisição nova. */
+  function instalado() {
+    try {
+      return (window.matchMedia && matchMedia('(display-mode: standalone)').matches) ||
+        navigator.standalone === true;
+    } catch (e) { return false; }
+  }
+  if (instalado()) registra('app_aberto');
+
   registra('pagina_vista', { rotulo: document.title });
 
   /* ---------- rolagem, tempo e saída ---------- */

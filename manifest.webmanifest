@@ -1,0 +1,58 @@
+{
+  "name": "Rossignoli Locações",
+  "short_name": "Rossignoli",
+  "description": "Locação de caminhão munck com operador e cesto aéreo em Varginha e no Sul de Minas. Atendimento 24 horas.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "id": "/",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#121212",
+  "categories": [
+    "business"
+  ],
+  "icons": [
+    {
+      "src": "/icons/site-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/site-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/site-192-mascara.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/site-512-mascara.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Pedir orçamento",
+      "short_name": "Orçamento",
+      "url": "/#pedido"
+    },
+    {
+      "name": "Cesto aéreo",
+      "url": "/cesto-aereo/"
+    },
+    {
+      "name": "Munck para contêiner",
+      "short_name": "Contêiner",
+      "url": "/munck-para-conteiner/"
+    }
+  ]
+}

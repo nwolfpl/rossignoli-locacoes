@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>Painel · Rossignoli Locações</title>
-<link rel="icon" href="../favicon.ico">
+<link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet">
 <style>
@@ -111,6 +111,11 @@ label.f .in{color:var(--ink);font-size:15px}
 details.ed{margin-top:16px}details.ed summary{cursor:pointer;font-family:var(--display);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
 @media(max-width:640px){.grid{grid-template-columns:1fr}.brow{grid-template-columns:100px 1fr 32px}}
 </style>
+<link rel="manifest" href="/painel/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/painel-apple-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Painel">
 </head>
 <body>
 
@@ -1353,7 +1358,7 @@ let VIS_DIAS=7, VIS_DADOS=null;
 /* Laranja da marca e um azul: o par passa na checagem de daltonismo, que o
    laranja com o verde do painel não passava (vermelho e verde se confundem). */
 const VIS_COR={visitas:'#CE581A',contatos:'#3F6EA8'};
-const VIS_ROT={sessao_inicio:'Entrou no site',pagina_vista:'Viu a página',rolagem:'Rolou a página',pulso:'Continuou na página',saida_pagina:'Saiu da página',whatsapp_clique:'Clicou no WhatsApp',telefone_clique:'Clicou no telefone',email_clique:'Clicou no e-mail',cta_clique:'Clicou no botão',link_externo:'Saiu para um link externo',orcamento_iniciado:'Começou a montar o orçamento',orcamento_campo:'Preencheu o orçamento',duvida_abriu:'Abriu uma dúvida'};
+const VIS_ROT={sessao_inicio:'Entrou no site',app_aberto:'Abriu pelo app instalado',pagina_vista:'Viu a página',rolagem:'Rolou a página',pulso:'Continuou na página',saida_pagina:'Saiu da página',whatsapp_clique:'Clicou no WhatsApp',telefone_clique:'Clicou no telefone',email_clique:'Clicou no e-mail',cta_clique:'Clicou no botão',link_externo:'Saiu para um link externo',orcamento_iniciado:'Começou a montar o orçamento',orcamento_campo:'Preencheu o orçamento',duvida_abriu:'Abriu uma dúvida'};
 /* Ruído de fundo: mede tempo e leitura, mas polui a linha do tempo. */
 const VIS_FUNDO={pulso:1,rolagem:1,saida_pagina:1};
 const visEvRot=n=>VIS_ROT[n]||n;
@@ -1622,5 +1627,6 @@ sb.auth.onAuthStateChange((_ev,session)=>{
   if(!iniciado){ iniciado=true; carregaPapel().then(render); }
 });
 </script>
+<script defer src="/js/pwa.js"></script>
 </body>
 </html>

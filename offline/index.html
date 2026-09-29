@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sem conexão · Rossignoli Locações</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#121212">
+<link rel="icon" href="/favicon.ico">
+<!--
+  Esta página é a última linha de defesa: aparece quando o aparelho está sem
+  sinal. Por isso não depende de CSS externo, de fonte da web nem de imagem —
+  tudo o que ela precisa está aqui dentro. O que ela tem de fazer é uma coisa
+  só: manter o telefone à mão, porque o serviço é 24 horas e quem procura munck
+  às vezes está numa obra com sinal ruim.
+-->
+<style>
+  :root{--ink:#121212;--paper:#F4F1EC;--orange:#CE581A;--mute:#8A837B}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+       padding:24px;background:var(--ink);color:var(--paper);
+       font-family:"Barlow","Helvetica Neue",system-ui,sans-serif;line-height:1.5}
+  .caixa{width:100%;max-width:420px;text-align:center}
+  .marca{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:800;
+         text-transform:uppercase;letter-spacing:.04em;font-size:26px;line-height:1}
+  .marca span{color:var(--orange)}
+  h1{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:800;
+     text-transform:uppercase;font-size:34px;line-height:1.05;margin:28px 0 10px}
+  p{color:#CFC8BE;margin:0 0 8px}
+  .telefone{display:block;margin:28px 0 10px;font-size:30px;font-weight:700;
+            color:var(--paper);text-decoration:none;letter-spacing:.01em}
+  .btn{display:block;margin-top:14px;padding:15px 18px;border-radius:6px;border:0;width:100%;
+       background:var(--orange);color:#fff;font:inherit;font-weight:600;font-size:16px;
+       text-decoration:none;cursor:pointer}
+  .btn.sec{background:none;border:1px solid #3A3734;color:#CFC8BE}
+  .nota{margin-top:26px;font-size:13px;color:var(--mute)}
+</style>
+</head>
+<body>
+  <div class="caixa">
+    <p class="marca">Rossignoli <span>Locações</span></p>
+
+    <h1>Você está sem conexão</h1>
+    <p>A página não carregou porque o aparelho está sem internet. Se for urgente, ligue — atendemos 24 horas.</p>
+
+    <a class="telefone" href="tel:+5535991912616">(35) 99191-2616</a>
+
+    <a class="btn" href="tel:+5535991912616">Ligar agora</a>
+    <a class="btn sec" href="https://wa.me/5535991912616" rel="noopener">Chamar no WhatsApp</a>
+    <button class="btn sec" type="button" onclick="location.reload()">Tentar carregar de novo</button>
+
+    <p class="nota">A ligação funciona mesmo sem internet, com sinal de celular.<br>O WhatsApp precisa de internet.</p>
+  </div>
+
+<script>
+  // Assim que o sinal voltar, sai da página de erro sozinho.
+  addEventListener('online', function(){ history.length > 1 ? history.back() : location.replace('/'); });
+</script>
+</body>
+</html>
