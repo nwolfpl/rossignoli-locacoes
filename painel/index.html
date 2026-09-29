@@ -774,7 +774,7 @@ const ALCANCE_CAMPO={gbp:'impressoes',gsc:'impressoes',instagram:'alcance',faceb
 const ALCANCE_ROT={gbp:'aparições no Google',gsc:'aparições na busca',instagram:'contas alcançadas',facebook:'pessoas alcançadas'};
 let SES=null;   // cache das visitas por origem
 async function carregaSessoes(desde){
-  const L=[]; for(let i=0;;i+=1000){ const {data,error}=await sb.from('site_sessoes').select('iniciada_em,origem').gte('iniciada_em',desde).order('iniciada_em').range(i,i+999);
+  const L=[]; for(let i=0;;i+=1000){ const {data,error}=await sb.from('site_sessoes').select('iniciada_em,origem,robo_motivo,interno').gte('iniciada_em',desde).order('iniciada_em').range(i,i+999);
     if(error){ toast(error.message); break; } L.push(...(data||[])); if(!data||data.length<1000) break; }
   SES={desde,linhas:L}; }
 let SITE=null;   // cache das métricas do Google: {desde, linhas, sync}
@@ -958,7 +958,8 @@ async function relatorios(){
       /* Visitas por canal saem da nossa própria tabela de sessões: ela guarda a
          origem no vocabulário da casa (gbp, instagram), não na taxonomia do GA. */
       const visitas={};
-      SES.linhas.filter(s=>dentro(diaDe(s.iniciada_em),I.ini,I.fim))
+      // Robôs e aparelhos da equipe não são visitas de cliente.
+      SES.linhas.filter(s=>!s.robo_motivo&&!s.interno&&dentro(diaDe(s.iniciada_em),I.ini,I.fim))
         .forEach(s=>{ const c=canalCanonico(s.origem); visitas[c]=(visitas[c]||0)+1; });
 
       const ped={}, fech={}, valor={};
@@ -1359,6 +1360,9 @@ const modelos=()=>simples('modelos_mensagem','Modelos de mensagem','etapa',true,
    Restrita ao administrador — o banco recusa a leitura para o resto da equipe. */
 const VIS_PERIODOS=[[1,'Hoje'],[7,'7 dias'],[30,'30 dias'],[90,'90 dias']];
 let VIS_DIAS=7, VIS_DADOS=null;
+/* Robôs e equipe ficam fora da conta por padrão, mas não somem: a etiqueta vem
+   do banco (site_sessoes.robo_motivo e .interno) e dá para mostrar de volta. */
+let VIS_ROBOS=false, VIS_EQUIPE=false;
 /* Laranja da marca e um azul: o par passa na checagem de daltonismo, que o
    laranja com o verde do painel não passava (vermelho e verde se confundem). */
 const VIS_COR={visitas:'#CE581A',contatos:'#3F6EA8'};
@@ -1388,7 +1392,16 @@ async function visitantes(){
   ]);
   if(ev.error||se.error){ v.innerHTML=`<div class="card alerta"><h3>Não deu para carregar</h3><p class="mute">${esc((ev.error||se.error).message)}</p></div>`; return; }
 
-  const E=ev.data||[], S=se.data||[];
+  const TODAS=se.data||[], TODOS_EV=ev.data||[];
+  const sessaoDe=new Map(TODAS.map(s=>[s.id,s]));
+  const conta=s=>(VIS_ROBOS||!s.robo_motivo)&&(VIS_EQUIPE||!s.interno);
+  const S=TODAS.filter(conta);
+  // Evento sem sessão gravada não tem origem nem etiqueta: não dá para saber se
+  // é cliente. Fica fora da conta e aparece no quadro abaixo.
+  const E=TODOS_EV.filter(e=>{ const s=sessaoDe.get(e.sessao_id); return s&&conta(s); });
+  const semSessao=new Set(TODOS_EV.filter(e=>!sessaoDe.has(e.sessao_id)).map(e=>e.sessao_id)).size;
+  const robos=TODAS.filter(s=>s.robo_motivo), daEquipe=TODAS.filter(s=>s.interno&&!s.robo_motivo);
+  const motivos=visContaPor(robos,s=>s.robo_motivo);
   VIS_DADOS={E,S};
 
   /* Agrupa por visita: quase tudo que interessa é por sessão, não por evento. */
@@ -1472,6 +1485,16 @@ async function visitantes(){
     <div class="kpi"><b>${visitas.length?Math.round(umaPagina/visitas.length*100):0}%</b><small>saíram na primeira página</small></div>
   </div>
 
+  <div class="card">
+    <div class="bar" style="margin-bottom:6px"><h3 style="margin:0">Fora da conta</h3>
+      <label class="small" style="margin-left:auto"><input type="checkbox" id="visRobos" ${VIS_ROBOS?'checked':''}> mostrar robôs</label>
+      <label class="small"><input type="checkbox" id="visEquipe" ${VIS_EQUIPE?'checked':''}> mostrar equipe</label></div>
+    <p class="small">${robos.length} visita(s) de <b>robôs</b> e ${daEquipe.length} da <b>equipe</b> no período ${VIS_ROBOS||VIS_EQUIPE?'<span class="late">— parte delas está sendo mostrada nos números acima</span>':'não entram nos números acima'}.${semSessao?` Mais ${semSessao} visita(s) sem registro de origem, que também ficam de fora.`:''}</p>
+    ${motivos.length?`<details><summary class="small" style="cursor:pointer">Por que cada robô foi etiquetado</summary>
+      <ul class="small" style="margin:8px 0 0;padding-left:18px">${motivos.map(m=>`<li><b>${m.total}</b> · ${esc(m.rotulo)}</li>`).join('')}</ul></details>`:''}
+    <p class="dica">Robôs são, na maioria, verificadores de link da Meta: abrem o site sozinhos toda vez que alguém posta ou compartilha o link no Instagram, Facebook ou WhatsApp. Para marcar um aparelho como da equipe, basta entrar neste painel nele — ou abrir o site uma vez com <code>?interno=1</code> no fim do endereço.</p>
+  </div>
+
   <div class="card"><h3>Visitas e pedidos de contato por dia</h3>${grafico}</div>
 
   <div class="cols2">
@@ -1504,18 +1527,20 @@ async function visitantes(){
     const f=(filtro||'').trim().toLowerCase();
     const L=visitas.filter(x=>{ if(!f) return true;
       const s=x.sessao||{};
-      return [s.origem,s.dispositivo,s.navegador,s.sistema,x.visitante,x.id,...x.eventos.map(e=>e.caminho+' '+(e.rotulo||''))].join(' ').toLowerCase().includes(f); });
+      return [s.origem,s.dispositivo,s.navegador,s.sistema,x.visitante,x.id,s.robo_motivo?'robô '+s.robo_motivo:'',s.interno?'equipe':'',...x.eventos.map(e=>e.caminho+' '+(e.rotulo||''))].join(' ').toLowerCase().includes(f); });
     $('#visLinhas').innerHTML=L.slice(0,120).map(x=>`<tr data-vis="${esc(x.id)}">
       <td>${dth(x.inicio)}</td><td>${esc(x.sessao&&x.sessao.origem||'—')}</td>
       <td class="small">${esc(x.sessao&&x.sessao.dispositivo||'—')}</td>
       <td class="n">${x.paginas}</td><td class="n">${visSegs(x.duracao)}</td>
-      <td>${x.contatou?'<span class="pill p-ok">pediu contato</span>':x.comecou?'<span class="pill p-novo">começou o orçamento</span>':''}</td></tr>`).join('')
+      <td>${x.sessao&&x.sessao.robo_motivo?`<span class="pill p-descartada" title="${esc(x.sessao.robo_motivo)}">robô</span> `:''}${x.sessao&&x.sessao.interno?'<span class="pill tag">equipe</span> ':''}${x.contatou?'<span class="pill p-ok">pediu contato</span>':x.comecou?'<span class="pill p-novo">começou o orçamento</span>':''}</td></tr>`).join('')
       ||'<tr><td colspan="6" class="mute">Nenhuma visita com esse filtro.</td></tr>';
   };
   desenhaLinhas('');
 
   $('#visBusca').oninput=e=>desenhaLinhas(e.target.value);
   v.querySelectorAll('[data-dias]').forEach(b=>b.onclick=()=>{ VIS_DIAS=Number(b.dataset.dias); visitantes(); });
+  $('#visRobos').onchange=e=>{ VIS_ROBOS=e.target.checked; visitantes(); };
+  $('#visEquipe').onchange=e=>{ VIS_EQUIPE=e.target.checked; visitantes(); };
   $('#visCsv').onclick=()=>visBaixaCsv('visitantes',E);
   v.onclick=e=>{ const tr=e.target.closest('[data-vis]'); if(!tr) return;
     const x=visitas.find(y=>y.id===tr.dataset.vis); if(x) abreVisita(x); };
@@ -1546,6 +1571,8 @@ function abreVisita(x){
     <h2>Visita de ${dth(x.inicio)}</h2>
     <p class="small mute">${esc(s.origem||'origem desconhecida')} · ${esc(s.dispositivo||'?')} · ${esc(s.navegador||'')} ${esc(s.sistema||'')}<br>
       ${x.paginas} página(s) · ${visSegs(x.duracao)} · visitante <code>${esc(String(x.visitante).slice(0,8))}</code></p>
+    ${s.robo_motivo?`<p class="small"><span class="pill p-descartada">robô</span> ${esc(s.robo_motivo)}</p>`:''}
+    ${s.interno?'<p class="small"><span class="pill tag">equipe</span> aparelho marcado como da equipe</p>':''}
     ${s.utm_campaign?`<p class="small">Campanha: ${esc(s.utm_campaign)} (${esc(s.utm_medium||'')})</p>`:''}
     <label class="small" style="display:block;margin:12px 0"><input type="checkbox" id="visFundo"> mostrar rolagem e tempo</label>
     <ol id="visPassos" style="padding-left:18px">${passos(false)}</ol>
@@ -1628,6 +1655,9 @@ sb.auth.onAuthStateChange((_ev,session)=>{
   $('#login').classList.toggle('hide',on); $('#app').classList.toggle('hide',!on);
   if(!on){ iniciado=false; return; }
   EU=session.user.email; $('#who').textContent=EU.split('@')[0];
+  // Quem entra no painel é da equipe: as próximas visitas deste aparelho ao site
+  // saem dos números. O js/rastreio.js lê a mesma chave.
+  try{ localStorage.setItem('rossignoliInterno','1'); }catch(e){}
   if(!iniciado){ iniciado=true; carregaPapel().then(render); }
 });
 </script>

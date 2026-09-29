@@ -68,6 +68,34 @@
     }
   }
 
+  /*
+   * Aparelho da equipe. Fica marcado de dois jeitos: ao entrar no painel (que
+   * está no mesmo domínio e grava a mesma chave) ou abrindo o site uma vez com
+   * ?interno=1. ?interno=0 desfaz. As visitas continuam sendo gravadas, só que
+   * etiquetadas, e o painel tira da conta — assim dá para testar o rastreamento
+   * sem sujar os números.
+   */
+  var CHAVE_INTERNO = 'rossignoliInterno';
+  var pedidoInterno = new URLSearchParams(location.search).get('interno');
+  if (pedidoInterno === '1' || pedidoInterno === '0') {
+    try {
+      if (pedidoInterno === '1') localStorage.setItem(CHAVE_INTERNO, '1');
+      else localStorage.removeItem(CHAVE_INTERNO);
+      // Sessão nova na hora: a atual já foi gravada sem a marca.
+      sessionStorage.removeItem(CHAVE_SESSAO);
+    } catch (e) {}
+  }
+  /*
+   * Fora do domínio oficial (localhost, cópia de teste) toda visita é da equipe.
+   * O banco é o mesmo de produção: sem isso, testes locais entravam nos números
+   * como se fossem clientes — aconteceu no primeiro dia de coleta.
+   */
+  var PRODUCAO = /(^|\.)rossignolilocacoes\.com\.br$/.test(location.hostname);
+  function ehInterno() {
+    if (!PRODUCAO) return true;
+    try { return localStorage.getItem(CHAVE_INTERNO) === '1'; } catch (e) { return false; }
+  }
+
   var nova = sessaoNova();
   var visitante = leOuCria('local', CHAVE_VISITANTE);
   var sessao = leOuCria('session', CHAVE_SESSAO);
@@ -188,7 +216,10 @@
       idioma: navigator.language || null,
       tela: screen.width + 'x' + screen.height,
       fuso: (Intl.DateTimeFormat().resolvedOptions().timeZone) || null,
-      user_agent: corta(navigator.userAgent, 500)
+      user_agent: corta(navigator.userAgent, 500),
+      interno: ehInterno(),
+      // Navegador controlado por programa se declara aqui. É o sinal mais forte de robô.
+      automatizado: navigator.webdriver === true
     }]);
     registra('sessao_inicio', { rotulo: origem() });
   }
@@ -203,6 +234,21 @@
     } catch (e) { return false; }
   }
   if (instalado()) registra('app_aberto');
+
+  if (pedidoInterno === '1' || pedidoInterno === '0') {
+    addEventListener('DOMContentLoaded', function () {
+      var aviso = document.createElement('div');
+      aviso.textContent = pedidoInterno === '1'
+        ? 'Este aparelho foi marcado como da equipe: suas visitas não entram nos números do site.'
+        : 'Marcação de equipe removida: este aparelho volta a contar como visitante.';
+      aviso.setAttribute('role', 'status');
+      aviso.style.cssText = 'position:fixed;left:12px;right:12px;top:12px;z-index:2147483647;' +
+        'background:#2F7D4F;color:#fff;padding:12px 14px;border-radius:6px;text-align:center;' +
+        'font:600 14px/1.4 system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.3)';
+      document.body.appendChild(aviso);
+      setTimeout(function () { aviso.remove(); }, 6000);
+    });
+  }
 
   registra('pagina_vista', { rotulo: document.title });
 
