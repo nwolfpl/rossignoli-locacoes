@@ -27,8 +27,13 @@ header{background:var(--ink);color:#F4F1EC;position:sticky;top:0;z-index:5}
 .top h1{font-size:20px;letter-spacing:.04em}.top h1 span{color:var(--orange)}
 .top .who{margin-left:auto;font-size:13px;color:#CFC8BE}
 .top button{background:none;border:1px solid #3A3734;color:#CFC8BE;border-radius:4px;padding:4px 10px;cursor:pointer}
-nav.tabs{display:flex;gap:2px;overflow-x:auto;padding:0 8px;scrollbar-width:none}
-nav.tabs button{background:none;border:0;color:#CFC8BE;padding:10px 12px;cursor:pointer;font-family:var(--display);font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:15px;border-bottom:3px solid transparent;white-space:nowrap}
+nav.tabs{display:flex;gap:0;overflow-x:auto;padding:0 8px;scrollbar-width:none}
+nav.tabs .tg{display:flex;flex-direction:column;padding:0 6px;border-left:1px solid #2F2C29}
+nav.tabs .tg:first-child{border-left:0}
+nav.tabs .tg>span{font-family:var(--display);font-weight:700;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#8A837B;padding:6px 6px 0}
+nav.tabs .tg>div{display:flex;gap:2px}
+nav.tabs button{background:none;border:0;color:#CFC8BE;padding:4px 8px 9px;cursor:pointer;font-family:var(--display);font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:15px;border-bottom:3px solid transparent;white-space:nowrap}
+nav.tabs button:hover{color:#fff}
 nav.tabs button.on{color:#fff;border-color:var(--orange)}
 main{max-width:1200px;margin:0 auto;padding:18px 16px 60px}
 .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
@@ -311,7 +316,10 @@ function fecha(){ document.querySelectorAll('.shade,.drawer,.actions').forEach(e
 /* ---------- Abas ---------- */
 const ABAS = [['resumo','Resumo'],['relatorios','Relatórios'],['backlog','Backlog'],['fila','Fila de hoje'],['pedidos','Pedidos'],['contas','Contas'],['concorrencia','Concorrência'],['licitacoes','Licitações'],['agenda','Agenda'],['avaliacoes','Avaliações'],['ranking','Ranking'],['inteligencia','Inteligência'],['modelos','Modelos']];
 let aba = (location.hash.slice(1) || 'resumo');
-function tabs(){ $('#tabs').innerHTML = ABAS.map(([k,l])=>`<button data-k="${k}" class="${k===aba?'on':''}">${l}</button>`).join(''); }
+const GRUPOS = [['Dia a dia',['resumo','fila','pedidos','agenda','avaliacoes']],['Vendas',['contas','licitacoes','modelos']],['Mercado',['concorrencia','ranking','inteligencia']],['Gestão',['relatorios','backlog']]];
+function tabs(){ const nome=Object.fromEntries(ABAS), usadas=GRUPOS.flatMap(g=>g[1]), resto=ABAS.map(a=>a[0]).filter(k=>!usadas.includes(k));
+  const G=resto.length?[...GRUPOS,['Outros',resto]]:GRUPOS;
+  $('#tabs').innerHTML = G.map(([g,ks])=>`<div class="tg"><span>${g}</span><div>${ks.filter(k=>nome[k]).map(k=>`<button data-k="${k}" class="${k===aba?'on':''}">${nome[k]}</button>`).join('')}</div></div>`).join(''); }
 $('#tabs').onclick = e => { const b=e.target.closest('button'); if(!b) return; aba=b.dataset.k; location.hash=aba; render(); };
 function render(){ fecha(); $('#view').onclick=null; tabs(); ({resumo,relatorios,backlog,fila,pedidos,contas,concorrencia,agenda,avaliacoes,licitacoes,ranking,inteligencia,modelos}[aba]||resumo)(); }
 
