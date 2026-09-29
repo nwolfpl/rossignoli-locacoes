@@ -314,9 +314,10 @@ function gaveta(tab,reg,titulo,depois,extraHtml='',o={}){
 function fecha(){ document.querySelectorAll('.shade,.drawer,.actions').forEach(e=>e.remove()); }
 
 /* ---------- Abas ---------- */
-const ABAS = [['resumo','Resumo'],['relatorios','Relatórios'],['backlog','Backlog'],['fila','Fila de hoje'],['pedidos','Pedidos'],['contas','Contas'],['concorrencia','Concorrência'],['licitacoes','Licitações'],['agenda','Agenda'],['avaliacoes','Avaliações'],['ranking','Ranking'],['inteligencia','Inteligência'],['modelos','Modelos']];
+const ABAS = [['resumo','Resumo'],['fila','Fila de hoje'],['pedidos','Pedidos'],['agenda','Agenda'],['avaliacoes','Avaliações'],['contas','Contas'],['licitacoes','Licitações'],['relatorios','Relatórios'],['concorrencia','Concorrência'],['ranking','Posição no Maps'],['inteligencia','Inteligência'],['backlog','Plano de ação'],['modelos','Mensagens']];
 let aba = (location.hash.slice(1) || 'resumo');
-const GRUPOS = [['Dia a dia',['resumo','fila','pedidos','agenda','avaliacoes']],['Vendas',['contas','licitacoes','modelos']],['Mercado',['concorrencia','ranking','inteligencia']],['Gestão',['relatorios','backlog']]];
+// ordem de uso: o que se faz todo dia, onde estão os clientes, como está indo, e o que se ajusta de vez em quando
+const GRUPOS = [['Dia a dia',['resumo','fila','pedidos','agenda','avaliacoes']],['Clientes',['contas','licitacoes']],['Resultados',['relatorios','concorrencia','ranking','inteligencia']],['Ajustes',['backlog','modelos']]];
 function tabs(){ const nome=Object.fromEntries(ABAS), usadas=GRUPOS.flatMap(g=>g[1]), resto=ABAS.map(a=>a[0]).filter(k=>!usadas.includes(k));
   const G=resto.length?[...GRUPOS,['Outros',resto]]:GRUPOS;
   $('#tabs').innerHTML = G.map(([g,ks])=>`<div class="tg"><span>${g}</span><div>${ks.filter(k=>nome[k]).map(k=>`<button data-k="${k}" class="${k===aba?'on':''}">${nome[k]}</button>`).join('')}</div></div>`).join(''); }
@@ -731,7 +732,15 @@ async function contas(){
 
 /* Relatórios: período com comparação, filtros por responsável e origem; tudo calculado aqui a partir das tabelas */
 const PERIODOS=[['semana','Esta semana'],['semana_ant','Semana passada'],['mes','Este mês'],['mes_ant','Mês passado'],['30','Últimos 30 dias'],['90','Últimos 90 dias'],['ano','Este ano'],['livre','Escolher datas']];
-const VISOES=[['geral','Visão geral'],['pedidos','Pedidos e vendas'],['prosp','Prospecção'],['carteira','Carteira e clientes'],['oper','Operação'],['presenca','Presença e mercado']];
+const VISOES=[['geral','Visão geral'],['site','Site e Google'],['pedidos','Pedidos e vendas'],['prosp','Prospecção'],['carteira','Carteira e clientes'],['oper','Operação'],['presenca','Presença e mercado']];
+const CANAIS_GA={'Organic Search':'Busca no Google','Direct':'Direto (digitou ou salvou)','Referral':'Outros sites','Organic Social':'Redes sociais','Paid Search':'Anúncio no Google','Paid Social':'Anúncio em rede social','Organic Maps':'Google Maps','Unassigned':'Não identificado','Email':'E-mail','Organic Video':'Vídeo'};
+const ORIGENS_SITE=['site','google_perfil','instagram'];
+let SITE=null;   // cache das métricas do Google: {desde, linhas, sync}
+async function carregaSite(desde){
+  const L=[]; for(let i=0;;i+=1000){ const {data,error}=await sb.from('site_metricas').select('data,fonte,relatorio,chave,metricas').gte('data',desde).order('data').range(i,i+999);
+    if(error){ toast(error.message); break; } L.push(...(data||[])); if(!data||data.length<1000) break; }
+  const {data:sy}=await sb.from('site_sync').select('*').order('em',{ascending:false}).limit(20);
+  SITE={desde,linhas:L,sync:sy||[]}; }
 const CONVERSA=['decisor','interessado','proposta','retorno','sem_interesse','cliente'];
 function intervalo(k,a,b){
   const d=new Date(); d.setHours(0,0,0,0); let ini, fim=new Date(d);
@@ -854,6 +863,45 @@ async function relatorios(){
       ${colunas('Faturamento por semana (12 semanas)',semanas(12,(s,e)=>P.filter(p=>p.status==='fechado'&&dentro(diaFech(p),s,e)).reduce((t,p)=>t+Number(p.valor_fechado||0),0)),x=>x>=1000?Math.round(x/100)/10+' mil':x)}</div>
       ${!PED.length?'<div class="aviso">Ainda não há pedidos registrados. Use <b>+ Pedido</b> (no topo) sempre que chegar um pedido por WhatsApp, telefone ou indicação: é isso que alimenta estes números.</div>':''}`;
     }
+    if(visao==='site'){
+      const precisa=[I.pIni,iso(new Date(Date.now()-84*864e5))].sort()[0];
+      if(!SITE||SITE.desde>precisa){ $('#rOut').innerHTML=cab+'<p class="mute">Carregando os números do Google…</p>'; carregaSite(precisa).then(desenha); return; }
+      const S=SITE.linhas, soma=(L,k)=>L.reduce((t,x)=>t+Number(x.metricas[k]||0),0);
+      const R=(fonte,rel,a,b)=>S.filter(x=>x.fonte===fonte&&x.relatorio===rel&&dentro(x.data,a,b));
+      const tot=R('ga','total',I.ini,I.fim), totA=R('ga','total',I.pIni,I.pFim);
+      const vis=soma(tot,'sessoes'), visA=soma(totA,'sessoes'), cl=soma(tot,'whatsapp')+soma(tot,'ligar'), clA=soma(totA,'whatsapp')+soma(totA,'ligar');
+      const PS=P.filter(p=>ORIGENS_SITE.includes(p.origem)), pc=PS.filter(p=>dentro(diaDe(p.criado_em),I.ini,I.fim)), pcA=PS.filter(p=>dentro(diaDe(p.criado_em),I.pIni,I.pFim));
+      const pf=PS.filter(p=>p.status==='fechado'&&dentro(diaFech(p),I.ini,I.fim)), fatS=pf.reduce((t,p)=>t+Number(p.valor_fechado||0),0);
+      const ultGA=SITE.sync.find(x=>x.fonte==='ga'), ultGSC=SITE.sync.find(x=>x.fonte==='gsc'), semConfig=!SITE.sync.some(x=>x.ok)&&SITE.sync.some(x=>x.fonte==='config');
+      const st=x=>!x?'<span class="mute">ainda não rodou</span>':x.ok?`<span class="sobe">ok</span> <span class="mute">${dth(x.em)}</span>`:`<span class="late">erro</span> <span class="mute">${dth(x.em)} · ${esc(x.detalhe||'')}</span>`;
+      const agrupaM=(L,k=x=>x.chave)=>{ const g={}; L.forEach(x=>{ const c=k(x)||'—', o=g[c]=g[c]||{}; for(const [n,v] of Object.entries(x.metricas)) o[n]=(o[n]||0)+Number(v); }); return g; };
+      const txC=(o)=>{ const c=(o.whatsapp||0)+(o.ligar||0); return o.sessoes?Math.round(c/o.sessoes*1000)/10:null; };
+      const canais=Object.entries(agrupaM(R('ga','canal',I.ini,I.fim))).map(([k,o])=>{ const [g,src]=k.split('|'); return [CANAIS_GA[g]||g,src,o.sessoes||0,o.whatsapp||0,o.ligar||0,txC(o)]; }).sort((a,b)=>b[2]-a[2]);
+      const pedPag={}; pc.forEach(p=>{ const k=p.pagina||'/'; pedPag[k]=(pedPag[k]||0)+1; });
+      const paginas=Object.entries(agrupaM(R('ga','pagina',I.ini,I.fim))).map(([k,o])=>[k,o.visualizacoes||0,o.whatsapp||0,o.ligar||0,o.visualizacoes?Math.round(((o.whatsapp||0)+(o.ligar||0))/o.visualizacoes*1000)/10:null,pedPag[k]||0]).sort((a,b)=>b[1]-a[1]);
+      const cidades=Object.entries(agrupaM(R('ga','cidade',I.ini,I.fim))).map(([k,o])=>[k==='(not set)'?'Não identificada':k,o.sessoes||0,(o.whatsapp||0)+(o.ligar||0)]).sort((a,b)=>b[1]-a[1]);
+      const disp=Object.entries(agrupaM(R('ga','dispositivo',I.ini,I.fim))).map(([k,o])=>[{mobile:'Celular',desktop:'Computador',tablet:'Tablet'}[k]||k,o.sessoes||0]).sort((a,b)=>b[1]-a[1]);
+      const hs=agrupaM(R('ga','hora',I.ini,I.fim)), horas=[...Array(24).keys()].map(h=>{ const o=hs[String(h).padStart(2,'0')]||hs[String(h)]||{}; return [String(h),(o.whatsapp||0)+(o.ligar||0)]; });
+      const DS=['dom','seg','ter','qua','qui','sex','sáb'], dsem=DS.map((d,i)=>[d,tot.filter(x=>new Date(x.data+'T12:00').getDay()===i).reduce((t,x)=>t+Number(x.metricas.whatsapp||0)+Number(x.metricas.ligar||0),0)]);
+      const g=R('gsc','total',I.ini,I.fim), gi=soma(g,'impressoes');
+      const buscas=Object.entries(agrupaM(R('gsc','busca',I.ini,I.fim))).map(([k,o])=>[k,o.cliques||0,o.impressoes||0,o.impressoes?Math.round(o.posicao_x_impr/o.impressoes*10)/10:null]).sort((a,b)=>b[2]-a[2]);
+      const semanasGA=semanas(12,(s0,e)=>soma(S.filter(x=>x.fonte==='ga'&&x.relatorio==='total'&&dentro(x.data,s0,e)),'sessoes'));
+      html=`<div class="card noprint" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span class="small">Google Analytics: ${st(ultGA)}</span><span class="small">Search Console: ${st(ultGSC)}</span><button class="btn sec" id="rSync" style="margin-left:auto">Atualizar agora</button></div>
+        ${semConfig?'<div class="aviso">A conexão com o Google ainda não foi concluída: falta cadastrar a chave da conta de serviço. Enquanto isso, os pedidos do site (abaixo) já aparecem, porque vêm do próprio painel.</div>':''}
+        <div class="kpis">${kpi(vis,'visitas ao site',visA,{num:vis,ant:visA})}${kpi(soma(tot,'usuarios'),'visitantes')}
+          ${kpi(soma(tot,'whatsapp'),'cliques no WhatsApp',soma(totA,'whatsapp'),{num:soma(tot,'whatsapp'),ant:soma(totA,'whatsapp')})}${kpi(soma(tot,'ligar'),'cliques em Ligar',soma(totA,'ligar'),{num:soma(tot,'ligar'),ant:soma(totA,'ligar')})}
+          ${kpi(vis?Math.round(cl/vis*1000)/10+'%':'—','das visitas clicaram para falar',visA?Math.round(clA/visA*1000)/10+'%':null,{num:vis?cl/vis:null,ant:visA?clA/visA:null})}
+          ${kpi(pc.length,'pedidos vindos do site e do Perfil do Google',pcA.length,{num:pc.length,ant:pcA.length})}${kpi(pf.length,'fechados dessas origens')}${kpi(brl(fatS)||'R$ 0','faturamento dessas origens')}
+          ${kpi(gi||'—','vezes que o site apareceu no Google')}${kpi(soma(g,'cliques')||'—','cliques vindos da busca do Google')}</div>
+        ${barras('Do clique ao serviço',[['Visitas',vis],['Clicaram para falar',cl],['Pedidos registrados',pc.length],['Fechados',pf.length]],x=>x,{dica:'Nem todo clique vira pedido registrado: quem atende pelo WhatsApp registra com "+ Pedido". A diferença grande entre cliques e pedidos indica pedidos que não foram anotados.'})}
+        ${colunas('Visitas por semana (12 semanas)',semanasGA)}
+        ${tabela('De onde vêm os visitantes',[['Canal'],['Fonte'],['Visitas',1],['WhatsApp',1],['Ligar',1],['% que clicou',1,x=>x==null?'—':x+'%']],canais,{vazio:'Sem dados do Analytics no período.'})}
+        ${tabela('Páginas',[['Página'],['Visualizações',1],['WhatsApp',1],['Ligar',1],['% que clicou',1,x=>x==null?'—':x+'%'],['Pedidos registrados',1]],paginas,{vazio:'Sem dados do Analytics no período.',dica:'Páginas de cidade com visita e sem clique pedem texto e foto melhores; cidade com procura e sem página merece uma.'})}
+        <div class="cols2">${tabela('Cidade de quem visitou',[['Cidade'],['Visitas',1],['Cliques',1]],cidades,{max:15,vazio:'Sem dados do Analytics no período.'})}${barras('Aparelho',disp,x=>x,{vazio:'Sem dados do Analytics no período.'})}</div>
+        <div class="cols2">${colunas('Cliques por hora do dia',horas)}${colunas('Cliques por dia da semana',dsem)}</div>
+        <p class="dica">Quem clica espera resposta rápida: nos horários com mais cliques, deixe alguém de olho no WhatsApp (meta: responder em até 5 min).</p>
+        ${tabela('O que buscaram no Google antes de achar o site',[['Busca'],['Cliques',1],['Vezes que apareceu',1],['Posição média',1,x=>x==null?'—':x.toLocaleString('pt-BR')+'º']],buscas,{max:30,vazio:'Sem dados do Search Console no período.',dica:'Posição até 10 = primeira página do Google. Buscas com muita aparição e posição ruim são as que mais valem uma página ou texto novo.'})}`;
+    }
     if(visao==='pedidos'){
       const cri=m.cri, cnt=s=>cri.filter(p=>p.status===s).length;
       const faixa=p=>{ const x=minutos(p); return x==null?'Sem resposta registrada':x<=5?'Até 5 min':x<=60?'5 a 60 min':x<=1440?'1 a 24 h':'Mais de 24 h'; };
@@ -928,6 +976,10 @@ async function relatorios(){
       const csv='﻿'+[T.cols.map(c=>q(c[0])),...T.linhas.map(l=>l.map(q))].map(l=>l.join(';')).join('\n');
       const u=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})), el=document.createElement('a');
       el.href=u; el.download=`${T.titulo.replace(/[^\wÀ-ú ]+/g,'').trim().replace(/\s+/g,'-').toLowerCase()}-${I.ini}-a-${I.fim}.csv`; el.click(); setTimeout(()=>URL.revokeObjectURL(u),1000); });
+    const bs=$('#rSync'); if(bs) bs.onclick=async()=>{ bs.disabled=true; bs.textContent='Atualizando…';
+      const {data,error}=await sb.functions.invoke('google-site-sync',{body:{forcar:true,dias:SITE&&SITE.sync.some(x=>x.ok)?35:480}});
+      if(error) toast('Erro: '+error.message); else if(data&&data.configurado===false) toast('Falta cadastrar a chave da conta de serviço do Google');
+      else toast('Números do Google atualizados'); SITE=null; desenha(); };
     $('#rOut').querySelectorAll('[data-vis]').forEach(x=>x.onclick=e=>{ e.preventDefault(); visao=x.dataset.vis; desenha(); });
   };
   $('#rVis').onclick=e=>{ const b=e.target.closest('[data-v]'); if(!b) return; visao=b.dataset.v; desenha(); };
@@ -961,7 +1013,7 @@ async function backlog(){
   const resp=[...new Set(data.map(r=>r.responsavel).filter(Boolean))].sort();
   let F={}; try{ F=JSON.parse(localStorage.getItem('fBack')||'{}'); }catch(e){}
   const feitas=data.filter(r=>r.status==='feita').length, atras=data.filter(r=>r.status!=='feita'&&r.prazo&&r.prazo<hoje()).length, bloq=data.filter(r=>r.status==='bloqueada').length;
-  v.innerHTML=`<div class="bar"><h2>Backlog · Plano Top 1</h2><select class="in" id="bSit"><option value="abertas">Em aberto</option><option value="todas">Todas</option><option value="bloqueada">Só bloqueadas</option><option value="atrasadas">Só atrasadas</option><option value="feita">Só feitas</option></select><select class="in" id="bResp"><option value="">Todos os responsáveis</option>${resp.map(r=>`<option>${esc(r)}</option>`).join('')}</select><button class="btn" id="novo">+ Tarefa</button></div>
+  v.innerHTML=`<div class="bar"><h2>Plano de ação</h2><select class="in" id="bSit"><option value="abertas">Em aberto</option><option value="todas">Todas</option><option value="bloqueada">Só bloqueadas</option><option value="atrasadas">Só atrasadas</option><option value="feita">Só feitas</option></select><select class="in" id="bResp"><option value="">Todos os responsáveis</option>${resp.map(r=>`<option>${esc(r)}</option>`).join('')}</select><button class="btn" id="novo">+ Tarefa</button></div>
   <p class="small mute" style="margin-bottom:12px">${feitas} de ${data.length} feitas · <span class="${atras?'late':''}">${atras} atrasada(s)</span> · ${bloq} bloqueada(s). Plano completo: <a href="https://claude.ai/artifact/98ZTKYDhc13cuEayoKRAku" target="_blank" rel="noopener">abrir</a>.</p><div id="lista"></div>`;
   if(F.sit) $('#bSit').value=F.sit; if(F.resp&&resp.includes(F.resp)) $('#bResp').value=F.resp;
   const desenha=()=>{ const sit=$('#bSit').value, rp=$('#bResp').value; try{ localStorage.setItem('fBack',JSON.stringify({sit,resp:rp})); }catch(e){}
@@ -1031,7 +1083,7 @@ async function licitacoes(){
     desenha(); });
   $('#novo').onclick=()=>gaveta('licitacoes',{status:'monitorar',tipo:'licitacao'},'Adicionar',licitacoes); desenha();
 }
-const ranking=()=>simples('ranking_semanal','Ranking semanal no Google Maps','data',false,
+const ranking=()=>simples('ranking_semanal','Posição no Google Maps (semanal)','data',false,
   [['Data',r=>dt(r.data)],['Busca',r=>esc(r.busca)],['Posição',r=>r.posicao?r.posicao+'º':'não aparece'],['Resultados',r=>r.total_resultados??''],['Avaliações',r=>r.avaliacoes_rossignoli??''],['Nota',r=>r.nota??'']],
   ()=>({data:hoje(),busca:'caminhão munck em Varginha MG'}), r=>'Ranking '+dt(r.data));
 
